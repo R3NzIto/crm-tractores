@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getCustomers, logoutAndRedirect } from "../api";
+import logoWolfHard from "../assets/logo-wolfhard.jpg";
 
 function Dashboard() {
   const storedUser = localStorage.getItem("user");
@@ -55,7 +56,7 @@ function Dashboard() {
     <div className="page">
       <div className="page-header">
         <div className="brand">
-          <div className="brand-icon">T</div>
+          <img src={logoWolfHard} alt="Wolf Hard" className="brand-logo" />
           <div>
             CRM Tractores
             <div className="muted" style={{ fontSize: "0.9rem" }}>

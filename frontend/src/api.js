@@ -158,6 +158,25 @@ export function invalidateCustomersCache() {
   clearCache();
 }
 
+export async function getCustomerNotes(token, customerId) {
+  return apiFetch(`/api/customers/${customerId}/notes`, { token });
+}
+
+export async function createCustomerNote(token, customerId, payload) {
+  return apiFetch(`/api/customers/${customerId}/notes`, {
+    method: "POST",
+    token,
+    body: payload,
+  });
+}
+
+export async function deleteCustomerNote(token, customerId, noteId) {
+  return apiFetch(`/api/customers/${customerId}/notes/${noteId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
 export async function getAgenda(token) {
   return apiFetch("/api/agenda", { token });
 }

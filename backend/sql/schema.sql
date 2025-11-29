@@ -34,6 +34,16 @@ CREATE TABLE IF NOT EXISTS agenda_items (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS customer_notes (
+  id SERIAL PRIMARY KEY,
+  customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id),
+  texto TEXT NOT NULL,
+  fecha_visita TIMESTAMP,
+  proximos_pasos TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 INSERT INTO users (name, email, password_hash, role)
 VALUES (
   'Admin Principal',

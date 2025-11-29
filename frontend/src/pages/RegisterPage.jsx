@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { registerRequest } from "../api";
+import logoWolfHard from "../assets/logo-wolfhard.jpg";
+
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1610476208552-030dc016d98c?auto=format&fit=crop&w=1400&q=80";
 
 const ROLE_OPTIONS = [
   { value: "jefe", label: "Jefe / Administrador" },
@@ -42,27 +46,61 @@ function RegisterPage() {
   };
 
   return (
-    <div className="page">
+    <div className="page auth-page">
       <div className="auth-layout">
-        <div className="auth-hero">
-          <div className="brand">
-            <div className="brand-icon">T</div>
-            <div>
-              CRM Tractores
-              <div className="muted" style={{ fontSize: "0.9rem" }}>
-                Define tu rol: jefe para controlar, empleado para operar
+        <div
+          className="auth-hero"
+          style={{
+            backgroundImage: `linear-gradient(135deg, rgba(186, 24, 27, 0.82), rgba(12, 10, 11, 0.55)), url(${HERO_IMAGE})`,
+          }}
+        >
+          <div className="hero-topbar">
+            <div className="brand brand-strong">
+              <img src={logoWolfHard} alt="Wolf Hard" className="brand-logo" />
+              <div>
+                Wolf Hard CRM
+                <div className="muted small">Equipos, repuestos y postventa</div>
               </div>
             </div>
+            <div className="social-dots">
+              <span>WA</span>
+              <span>IG</span>
+              <span>FB</span>
+            </div>
           </div>
-          <h1>Crear cuenta</h1>
-          <p>
-            Registra una cuenta para el equipo de venta o postventa. Selecciona
-            tu rol para ver las funcionalidades correctas al ingresar.
-          </p>
+
+          <div className="auth-hero-copy">
+            <p className="eyebrow">Registro</p>
+            <h1>La fuerza que impulsa tu campo</h1>
+            <p>
+              Conecta ventas, equipos y servicio postventa en un CRM con el mismo
+              caracter robusto de tu maquinaria.
+            </p>
+            <div className="hero-tags">
+              <span className="tag">Control de equipos</span>
+              <span className="tag">Agenda y visitas</span>
+              <span className="tag">Posventa que responde</span>
+            </div>
+            <button className="btn hero-cta" type="button">
+              Conoce nuestros modulos
+            </button>
+          </div>
         </div>
 
         <div className="card auth-card">
-          <h3 style={{ marginTop: 0, marginBottom: 12 }}>Datos de acceso</h3>
+          <div className="auth-card-header">
+            <div>
+              <p className="eyebrow" style={{ marginBottom: 6 }}>
+                Datos de acceso
+              </p>
+              <h3 style={{ margin: 0 }}>Crear cuenta</h3>
+              <p className="muted small">
+                Selecciona jefe/administrador para controlar el equipo o empleado
+                para operar.
+              </p>
+            </div>
+            <div className="auth-badge">Wolf Hard</div>
+          </div>
           <form onSubmit={handleSubmit} className="form-grid">
             <input
               type="text"

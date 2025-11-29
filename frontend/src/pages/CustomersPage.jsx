@@ -6,11 +6,16 @@ import {
   getCustomers,
   getUsers,
   importCustomers,
+  getCustomerNotes,
+  createCustomerNote,
+  deleteCustomerNote,
   logoutAndRedirect,
   updateCustomer,
 } from "../api";
+import logoWolfHard from "../assets/logo-wolfhard.jpg";
 
 const MANAGER_ROLES = ["admin", "manager", "jefe"];
+const formatDateTime = (value) => (value ? new Date(value).toLocaleString() : "Sin fecha");
 
 function CustomersPage() {
   const [customers, setCustomers] = useState([]);
@@ -28,6 +33,15 @@ function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
+  const [notesCustomer, setNotesCustomer] = useState(null);
+  const [notes, setNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [noteForm, setNoteForm] = useState({
+    texto: "",
+    fecha_visita: "",
+    proximos_pasos: "",
+  });
+  const [noteError, setNoteError] = useState("");
   const token = localStorage.getItem("token");
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
@@ -65,6 +79,56 @@ function CustomersPage() {
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
       // silenciar error para empleados
+    }
+  };
+
+  const loadNotes = async (customer) => {
+    if (!customer) return;
+    setNotesCustomer(customer);
+    setNotesLoading(true);
+    setNoteError("");
+    try {
+      const data = await getCustomerNotes(token, customer.id);
+      setNotes(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setNoteError(err?.message || "No pudimos cargar notas");
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
+  const submitNote = async (e) => {
+    e.preventDefault();
+    if (!notesCustomer) return;
+    setNoteError("");
+    if (!noteForm.texto.trim()) {
+      setNoteError("La nota no puede estar vacia");
+      return;
+    }
+    try {
+      await createCustomerNote(token, notesCustomer.id, {
+        texto: noteForm.texto,
+        fecha_visita: noteForm.fecha_visita
+          ? new Date(noteForm.fecha_visita).toISOString()
+          : null,
+        proximos_pasos: noteForm.proximos_pasos,
+      });
+      setNoteForm({ texto: "", fecha_visita: "", proximos_pasos: "" });
+      await loadNotes(notesCustomer);
+    } catch (err) {
+      setNoteError(err?.message || "No pudimos guardar la nota");
+    }
+  };
+
+  const handleDeleteNote = async (noteId) => {
+    if (!notesCustomer) return;
+    const confirmed = window.confirm("¿Eliminar esta nota?");
+    if (!confirmed) return;
+    try {
+      await deleteCustomerNote(token, notesCustomer.id, noteId);
+      await loadNotes(notesCustomer);
+    } catch (err) {
+      setNoteError(err?.message || "No pudimos eliminar la nota");
     }
   };
 
@@ -204,7 +268,7 @@ function CustomersPage() {
     <div className="page">
       <div className="page-header">
         <div className="brand">
-          <div className="brand-icon">T</div>
+          <img src={logoWolfHard} alt="Wolf Hard" className="brand-logo" />
           <div>
             Clientes
             <div className="muted" style={{ fontSize: "0.9rem" }}>
@@ -374,16 +438,19 @@ function CustomersPage() {
                       <button
                         className="btn danger"
                         type="button"
-                        onClick={() => handleDelete(c.id)}
-                        disabled={!canEditExisting}
-                      >
-                        Eliminar
-                      </button>
-                      {isManager && (
-                        <select
-                          value={c.assigned_to || ""}
-                          onChange={(e) => handleAssign(c.id, e.target.value)}
-                        >
+                    onClick={() => handleDelete(c.id)}
+                    disabled={!canEditExisting}
+                  >
+                    Eliminar
+                  </button>
+                  <button className="btn ghost" type="button" onClick={() => loadNotes(c)}>
+                    Notas
+                  </button>
+                  {isManager && (
+                    <select
+                      value={c.assigned_to || ""}
+                      onChange={(e) => handleAssign(c.id, e.target.value)}
+                    >
                           <option value="">Asignar...</option>
                           {users.map((u) => (
                             <option key={u.id} value={u.id}>
@@ -406,6 +473,103 @@ function CustomersPage() {
             </tbody>
           </table>
         </div>
+
+        {notesCustomer && (
+          <div className="card lift" style={{ marginTop: 12 }}>
+            <div className="card-header" style={{ marginBottom: 4 }}>
+              <div>
+                <p className="eyebrow">Notas del cliente</p>
+                <h3 style={{ margin: "2px 0 0" }}>{notesCustomer.name}</h3>
+              </div>
+              <div className="toolbar" style={{ marginBottom: 0 }}>
+                <span className="tag">
+                  {notes.length} notas �� {notesLoading ? "cargando" : "listo"}
+                </span>
+                <button className="btn secondary" type="button" onClick={() => loadNotes(notesCustomer)}>
+                  Actualizar
+                </button>
+                <button className="btn ghost" type="button" onClick={() => setNotesCustomer(null)}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={submitNote} className="form-grid compact fade-in">
+              <input
+                type="datetime-local"
+                value={noteForm.fecha_visita}
+                onChange={(e) => setNoteForm({ ...noteForm, fecha_visita: e.target.value })}
+                placeholder="Fecha/hora de visita"
+              />
+              <textarea
+                className="textarea"
+                placeholder="Detalles de la visita, acuerdos, contexto"
+                value={noteForm.texto}
+                onChange={(e) => setNoteForm({ ...noteForm, texto: e.target.value })}
+                rows={3}
+              />
+              <input
+                type="text"
+                placeholder="Proximos pasos / compromisos"
+                value={noteForm.proximos_pasos}
+                onChange={(e) => setNoteForm({ ...noteForm, proximos_pasos: e.target.value })}
+              />
+              <div className="toolbar">
+                <button className="btn" type="submit" disabled={notesLoading}>
+                  Agregar nota
+                </button>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={() => setNoteForm({ texto: "", fecha_visita: "", proximos_pasos: "" })}
+                >
+                  Limpiar
+                </button>
+              </div>
+            </form>
+
+            {noteError && <p className="error">{noteError}</p>}
+            {notesLoading && <p className="muted">Cargando notas...</p>}
+
+            <div style={{ marginTop: 10 }}>
+              {notes.length === 0 && !notesLoading ? (
+                <p className="muted">Aún no hay notas para este cliente.</p>
+              ) : (
+                <div className="timeline">
+                  {notes.map((note) => (
+                    <div key={note.id} className="timeline-item fade-in">
+                      <div className="timeline-meta">
+                        <span className="status-chip info">{note.user_name || "Equipo"}</span>
+                        <span className="muted small">{formatDateTime(note.created_at)}</span>
+                        {note.fecha_visita && (
+                          <span className="status-chip warning">
+                            Visita: {formatDateTime(note.fecha_visita)}
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ margin: "6px 0 4px" }}>{note.texto}</p>
+                      {note.proximos_pasos && (
+                        <p className="muted small" style={{ margin: "0 0 6px" }}>
+                          Próximos pasos: {note.proximos_pasos}
+                        </p>
+                      )}
+                      {(isManager || note.user_id === user?.id) && (
+                        <button
+                          className="btn danger"
+                          type="button"
+                          onClick={() => handleDeleteNote(note.id)}
+                          style={{ padding: "6px 10px", fontSize: "0.85rem" }}
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div style={{ marginTop: 10 }}>
           <h4 style={{ margin: "8px 0" }}>Distribucion por sector (rol)</h4>

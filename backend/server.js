@@ -8,6 +8,7 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const customerRoutes = require('./routes/customerRoutes');
+const customerNotesRoutes = require('./routes/customerNotesRoutes');
 const agendaRoutes = require('./routes/agendaRoutes');
 const userRoutes = require('./routes/userRoutes');
 const customerAssignRoutes = require('./routes/customerAssignRoutes');
@@ -60,6 +61,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api', apiLimiter);
 app.use('/api/customers', customerRoutes);
 app.use('/api/customers', customerAssignRoutes);
+app.use('/api/customers', customerNotesRoutes);
 app.use('/api/agenda', agendaRoutes);
 app.use('/api/users', userRoutes);
 
