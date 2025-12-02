@@ -62,11 +62,6 @@ function RegisterPage() {
                 <div className="muted small">Equipos, repuestos y postventa</div>
               </div>
             </div>
-            <div className="social-dots">
-              <span>WA</span>
-              <span>IG</span>
-              <span>FB</span>
-            </div>
           </div>
 
           <div className="auth-hero-copy">

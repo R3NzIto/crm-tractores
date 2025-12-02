@@ -90,16 +90,21 @@ a {
 .page {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 38px 24px 56px;
+  padding: 40px 28px 56px;
   position: relative;
   animation: fadeIn 0.35s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .page-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 18px;
+  padding: 18px 22px;
+  border-radius: 18px;
   background: linear-gradient(135deg, rgba(224, 38, 38, 0.18), rgba(21, 15, 17, 0.92));
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -141,9 +146,10 @@ a {
 
 .auth-layout {
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) 420px;
-  gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
   align-items: stretch;
+  justify-items: stretch;
 }
 
 .auth-hero {
@@ -159,6 +165,10 @@ a {
   min-height: 420px;
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.48);
   isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
 }
 
 .auth-hero::after {
@@ -245,6 +255,9 @@ a {
   box-shadow: var(--card-shadow);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .card::after {
@@ -261,6 +274,7 @@ a {
   color: #1f1a1d;
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 26px 70px rgba(0, 0, 0, 0.28);
+  height: 100%;
 }
 
 .auth-card::after {
@@ -301,7 +315,7 @@ a {
 
 .auth-card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
@@ -338,7 +352,8 @@ a {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
+  gap: 16px;
+  align-items: stretch;
 }
 
 .agenda-kpis .kpi-card {
@@ -352,6 +367,9 @@ a {
   background: linear-gradient(150deg, rgba(117, 39, 45, 0.28), var(--surface-strong));
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .kpi-card::before {
@@ -383,6 +401,8 @@ a {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .hero-actions {
@@ -426,6 +446,11 @@ a {
   background: rgba(255, 255, 255, 0.04);
   border-color: var(--border);
   color: var(--text);
+}
+
+.btn.secondary.active {
+  border-color: var(--accent);
+  box-shadow: 0 8px 18px rgba(224, 38, 38, 0.2);
 }
 
 .btn.ghost {
@@ -488,6 +513,15 @@ select:focus,
   transform: translateY(-1px);
 }
 
+select option {
+  background: #1c1517;
+  color: var(--text);
+}
+
+select option:disabled {
+  color: var(--muted);
+}
+
 .textarea {
   resize: vertical;
   min-height: 120px;
@@ -495,12 +529,13 @@ select:focus,
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
 }
 
 .form-grid.compact {
   gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .error {
@@ -523,11 +558,39 @@ select:focus,
 }
 
 .table-wrapper {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 70vh;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  scrollbar-color: var(--accent) #1a1214;
+  scrollbar-width: thin;
+}
+
+.table-wrapper::-webkit-scrollbar {
+  height: 12px;
+  width: 12px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+  background: #1a1214;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: linear-gradient(120deg, var(--accent), var(--accent-strong));
+  border-radius: 999px;
+  border: 2px solid #0f0c0d;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(120deg, #ff6b6b, var(--accent));
 }
 
 table {
   width: 100%;
+  min-width: 780px;
   border-collapse: collapse;
 }
 
@@ -539,6 +602,7 @@ th,
 td {
   text-align: left;
   padding: 10px 8px;
+  vertical-align: middle;
 }
 
 th {
@@ -546,10 +610,18 @@ th {
   color: var(--muted);
   border-bottom: 1px solid var(--border);
   letter-spacing: 0.2px;
+  position: sticky;
+  top: 0;
+  background: var(--surface-strong);
+  z-index: 1;
 }
 
 tbody tr {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 tbody tr:hover {
@@ -707,11 +779,32 @@ tr.overdue:hover {
 
 @media (max-width: 720px) {
   .page {
-    padding: 24px 16px 42px;
+    padding: 22px 16px 40px;
+    gap: 16px;
   }
 
-  .hero-actions {
-    justify-content: flex-start;
+  .page-hero {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 14px;
+    padding: 16px 16px 18px;
+  }
+
+  .brand {
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .brand-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .brand-logo {
+    width: 56px;
+    height: 56px;
   }
 
   .page-header,
@@ -720,20 +813,92 @@ tr.overdue:hover {
     align-items: flex-start;
   }
 
-  .auth-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .auth-hero {
-    min-height: 360px;
+  .hero-actions {
+    justify-content: center;
+    width: 100%;
   }
 
   .hero-topbar {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .auth-hero {
+    min-height: 360px;
+    text-align: center;
+    align-items: center;
+  }
+
+  .auth-layout {
+    grid-template-columns: 1fr;
   }
 
   .social-dots {
-    align-self: flex-end;
+    align-self: center;
+  }
+
+  .card,
+  .auth-card {
+    padding: 16px;
+  }
+
+  .kpi-grid {
+    gap: 12px;
+  }
+
+  .form-grid,
+  .form-grid.compact {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+  }
+
+  .toolbar {
+    justify-content: center;
+    gap: 10px;
+  }
+
+  table {
+    font-size: 0.95rem;
+  }
+
+  th,
+  td {
+    padding: 9px 6px;
+  }
+}
+
+@media (max-width: 540px) {
+  body {
+    background: linear-gradient(135deg, #0c090b, #130d10 60%, #0c090b);
+  }
+
+  .page {
+    padding: 20px 14px 36px;
+  }
+
+  .page-hero {
+    border-radius: 14px;
+  }
+
+  .hero-actions {
+    gap: 8px;
+  }
+
+  .status-bar {
+    gap: 8px;
+  }
+
+  .timeline {
+    padding-left: 6px;
+    border-left-width: 1.5px;
+  }
+
+  .timeline-item {
+    padding: 10px 10px;
   }
 }

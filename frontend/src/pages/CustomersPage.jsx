@@ -42,6 +42,8 @@ function CustomersPage() {
     proximos_pasos: "",
   });
   const [noteError, setNoteError] = useState("");
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({ localidad: "", sector: "", assigned: "" });
   const token = localStorage.getItem("token");
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
@@ -245,6 +247,36 @@ function CustomersPage() {
     return { total, conCorreo, porSector, porLocalidad };
   }, [customers]);
 
+  const localidadOptions = useMemo(() => {
+    return Array.from(
+      new Set(customers.map((c) => (c.localidad || "").trim()).filter(Boolean))
+    ).sort();
+  }, [customers]);
+
+  const sectorOptions = useMemo(() => {
+    return Array.from(new Set(customers.map((c) => (c.sector || "").trim()).filter(Boolean))).sort();
+  }, [customers]);
+
+  const filteredCustomers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return customers.filter((c) => {
+      if (filters.localidad && c.localidad !== filters.localidad) return false;
+      if (filters.sector && c.sector !== filters.sector) return false;
+      if (filters.assigned && String(c.assigned_to || "") !== filters.assigned) return false;
+      if (!query) return true;
+      const haystack = [c.name, c.email, c.company, c.localidad, c.sector, c.phone, c.assigned_to_name]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [customers, filters, search]);
+
+  const clearFilters = () => {
+    setSearch("");
+    setFilters({ localidad: "", sector: "", assigned: "" });
+  };
+
   const handleImport = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -397,7 +429,58 @@ function CustomersPage() {
           </span>
         </div>
 
-        <div style={{ overflowX: "auto" }}>
+        <div className="toolbar" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            type="text"
+            placeholder="Buscar por nombre, correo, empresa..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ minWidth: 220, maxWidth: 320 }}
+          />
+          <select
+            value={filters.localidad}
+            onChange={(e) => setFilters({ ...filters, localidad: e.target.value })}
+          >
+            <option value="">Localidad</option>
+            {localidadOptions.map((loc) => (
+              <option key={loc} value={loc}>
+                {loc}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filters.sector}
+            onChange={(e) => setFilters({ ...filters, sector: e.target.value })}
+          >
+            <option value="">Sector/rol</option>
+            {sectorOptions.map((sec) => (
+              <option key={sec} value={sec}>
+                {sec}
+              </option>
+            ))}
+          </select>
+          {isManager && (
+            <select
+              value={filters.assigned}
+              onChange={(e) => setFilters({ ...filters, assigned: e.target.value })}
+            >
+              <option value="">Asignado</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.role})
+                </option>
+              ))}
+            </select>
+          )}
+          <button type="button" className="btn secondary" onClick={clearFilters}>
+            Limpiar filtros
+          </button>
+          <span className="muted small">
+            Mostrando {filteredCustomers.length} de {customers.length}
+          </span>
+        </div>
+
+        <div className="table-wrapper">
           <table>
             <thead>
               <tr>
@@ -413,7 +496,7 @@ function CustomersPage() {
               </tr>
             </thead>
             <tbody>
-              {customers.map((c) => (
+              {filteredCustomers.map((c) => (
                 <tr key={c.id}>
                   <td>{c.id}</td>
                   <td>{c.name}</td>
@@ -422,11 +505,9 @@ function CustomersPage() {
                   <td className="muted">{c.company || "-"}</td>
                   <td>{c.localidad || "Sin localidad"}</td>
                   <td>{c.sector || "Sin sector"}</td>
-                  <td className="muted">
-                    {c.assigned_to_name || c.created_by_name || "Sin asignar"}
-                  </td>
+                  <td className="muted">{c.assigned_to_name || c.created_by_name || "Sin asignar"}</td>
                   <td>
-                    <div className="table-actions" style={{ gap: 6 }}>
+                    <div className="table-actions">
                       <button
                         className="btn secondary"
                         type="button"
@@ -438,11 +519,11 @@ function CustomersPage() {
                       <button
                         className="btn danger"
                         type="button"
-                    onClick={() => handleDelete(c.id)}
-                    disabled={!canEditExisting}
-                  >
-                    Eliminar
-                  </button>
+                        onClick={() => handleDelete(c.id)}
+                        disabled={!canEditExisting}
+                      >
+                        Eliminar
+                      </button>
                   <button className="btn ghost" type="button" onClick={() => loadNotes(c)}>
                     Notas
                   </button>

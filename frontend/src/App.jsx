@@ -4,6 +4,7 @@ import Dashboard from "./pages/Dashboard";
 import CustomersPage from "./pages/CustomersPage";
 import RegisterPage from "./pages/RegisterPage";
 import AgendaPage from "./pages/AgendaPage";
+import ResetPage from "./pages/ResetPage";
 import { logoutAndRedirect } from "./api";
 import "./App.css";
 
@@ -25,6 +26,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/reset" element={<ResetPage />} />
           <Route
             path="/dashboard"
             element={

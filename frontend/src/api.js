@@ -74,6 +74,28 @@ export async function registerRequest(payload) {
   return { ok: res.ok, data };
 }
 
+export async function forgotPassword(email) {
+  const res = await fetch(`${API_URL}/api/auth/forgot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+  const data = await res.json();
+  return { ok: res.ok, data };
+}
+
+export async function resetPassword(token, password) {
+  const res = await fetch(`${API_URL}/api/auth/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ token, password }),
+  });
+  const data = await res.json();
+  return { ok: res.ok, data };
+}
+
 export async function getCustomers(token, { force = false } = {}) {
   const now = Date.now();
 

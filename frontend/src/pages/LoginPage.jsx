@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { loginRequest } from "../api";
+import { loginRequest, forgotPassword } from "../api";
 import { Link } from "react-router-dom";
 import logoWolfHard from "../assets/logo-wolfhard.jpg";
 
@@ -11,6 +11,7 @@ function LoginPage() {
   const [password, setPassword] = useState("123456");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetInfo, setResetInfo] = useState({ email: "", message: "", sending: false });
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -35,6 +36,28 @@ function LoginPage() {
     }
   }
 
+  async function handleForgot() {
+    if (!resetInfo.email.trim()) {
+      setResetInfo((prev) => ({ ...prev, message: "Ingresa tu correo para recuperar" }));
+      return;
+    }
+    setResetInfo((prev) => ({ ...prev, sending: true, message: "" }));
+    try {
+      const { data } = await forgotPassword(resetInfo.email);
+      setResetInfo((prev) => ({
+        ...prev,
+        message: data?.message || "Si el correo existe, enviaremos instrucciones.",
+      }));
+    } catch (err) {
+      setResetInfo((prev) => ({
+        ...prev,
+        message: err?.message || "No pudimos iniciar el proceso de recuperacion",
+      }));
+    } finally {
+      setResetInfo((prev) => ({ ...prev, sending: false }));
+    }
+  }
+
   return (
     <div className="page auth-page">
       <div className="auth-layout">
@@ -51,11 +74,6 @@ function LoginPage() {
                 Wolf Hard CRM
                 <div className="muted small">Control de clientes y equipos</div>
               </div>
-            </div>
-            <div className="social-dots">
-              <span>WA</span>
-              <span>IG</span>
-              <span>FB</span>
             </div>
           </div>
 
@@ -114,8 +132,32 @@ function LoginPage() {
             {error && <p className="error">{error}</p>}
           </form>
           <p className="muted" style={{ marginTop: 10 }}>
-            ¿Sin cuenta? <Link to="/register">Crear cuenta</Link>
+            Sin cuenta? <Link to="/register">Crear cuenta</Link>
           </p>
+          <div className="card" style={{ marginTop: 10, padding: 12 }}>
+            <p className="eyebrow" style={{ marginBottom: 6 }}>
+              Olvide mi contrasena
+            </p>
+            <div className="form-grid compact">
+              <input
+                type="email"
+                placeholder="Correo para recuperar"
+                value={resetInfo.email}
+                onChange={(e) => setResetInfo({ ...resetInfo, email: e.target.value })}
+              />
+              <div className="toolbar" style={{ marginBottom: 0 }}>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={handleForgot}
+                  disabled={resetInfo.sending}
+                >
+                  {resetInfo.sending ? "Enviando..." : "Enviar instrucciones"}
+                </button>
+              </div>
+            </div>
+            {resetInfo.message && <p className="muted small">{resetInfo.message}</p>}
+          </div>
         </div>
       </div>
     </div>
