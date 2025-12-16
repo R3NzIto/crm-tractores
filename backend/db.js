@@ -1,16 +1,26 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// 1. Detectar si existe la variable de Render
+// --- ZONA DE DEBUG (EL CHISMOSO) ---
+console.log("🔴 --- INICIO DEPURACIÓN DB ---");
+console.log("¿Existe DATABASE_URL?:", !!process.env.DATABASE_URL); // Dirá true o false
+
+if (process.env.DATABASE_URL) {
+    console.log("La URL empieza con:", process.env.DATABASE_URL.substring(0, 10) + "...");
+} else {
+    console.log("⚠️ NO SE ENCONTRÓ DATABASE_URL. Intentando usar variables sueltas...");
+    console.log("DB_HOST detectado:", process.env.DB_HOST || "INDEFINIDO (Esto causará que use localhost)");
+}
+console.log("🔴 --- FIN DEPURACIÓN DB ---");
+// ------------------------------------
+
 const connectionString = process.env.DATABASE_URL;
 
-// 2. Configuración inteligente
 const connectionConfig = {
-  connectionString: connectionString, // Usa la URL de Render si existe
-  ssl: connectionString ? { rejectUnauthorized: false } : false, // Activa SSL solo si hay URL (Producción)
+  connectionString: connectionString,
+  ssl: connectionString ? { rejectUnauthorized: false } : false,
 };
 
-// 3. Si NO estamos en Render (local), usa las variables sueltas
 if (!connectionString) {
   connectionConfig.host = process.env.DB_HOST;
   connectionConfig.user = process.env.DB_USER;
