@@ -1,27 +1,14 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// --- ZONA DE DEBUG (EL CHISMOSO) ---
-console.log("🔴 --- INICIO DEPURACIÓN DB ---");
-console.log("¿Existe DATABASE_URL?:", !!process.env.DATABASE_URL); // Dirá true o false
-
-if (process.env.DATABASE_URL) {
-    console.log("La URL empieza con:", process.env.DATABASE_URL.substring(0, 10) + "...");
-} else {
-    console.log("⚠️ NO SE ENCONTRÓ DATABASE_URL. Intentando usar variables sueltas...");
-    console.log("DB_HOST detectado:", process.env.DB_HOST || "INDEFINIDO (Esto causará que use localhost)");
-}
-console.log("🔴 --- FIN DEPURACIÓN DB ---");
-// ------------------------------------
-
-const connectionString = process.env.DATABASE_URL;
-
+// Configuración limpia: Si hay URL (Prod), la usa con SSL. Si no (Dev), busca variables locales.
 const connectionConfig = {
-  connectionString: connectionString,
-  ssl: connectionString ? { rejectUnauthorized: false } : false,
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
 };
 
-if (!connectionString) {
+// Fallback para desarrollo local sin DATABASE_URL
+if (!process.env.DATABASE_URL) {
   connectionConfig.host = process.env.DB_HOST;
   connectionConfig.user = process.env.DB_USER;
   connectionConfig.password = process.env.DB_PASSWORD;
