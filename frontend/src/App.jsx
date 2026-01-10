@@ -1,58 +1,40 @@
+// src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import ResetPage from "./pages/ResetPage";
 import Dashboard from "./pages/Dashboard";
 import CustomersPage from "./pages/CustomersPage";
-import RegisterPage from "./pages/RegisterPage";
 import AgendaPage from "./pages/AgendaPage";
-import ResetPage from "./pages/ResetPage";
+import Layout from "./components/Layout"; // <--- Importamos el nuevo Layout
 import { logoutAndRedirect } from "./api";
 import "./App.css";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
-
   if (!token) {
     logoutAndRedirect("/");
     return <Navigate to="/" replace />;
   }
-
   return children;
 }
 
 function App() {
   return (
     <BrowserRouter>
-      <main className="app-shell">
-        <Routes>
-          <Route path="/" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/reset" element={<ResetPage />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customers"
-            element={
-              <ProtectedRoute>
-                <CustomersPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/agenda"
-            element={
-              <ProtectedRoute>
-                <AgendaPage />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </main>
+      <Routes>
+        {/* Rutas Públicas (Sin menú lateral) */}
+        <Route path="/" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/reset" element={<ResetPage />} />
+
+        {/* Rutas Protegidas (Con Layout Profesional) */}
+        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+           <Route path="/dashboard" element={<Dashboard />} />
+           <Route path="/customers" element={<CustomersPage />} />
+           <Route path="/agenda" element={<AgendaPage />} />
+        </Route>
+      </Routes>
     </BrowserRouter>
   );
 }

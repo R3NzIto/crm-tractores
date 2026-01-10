@@ -1,4 +1,3 @@
-// backend/routes/customerNotesRoutes.js
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const pool = require('../db');
@@ -7,10 +6,14 @@ const Joi = require('joi');
 
 const canManageAll = (role) => ['admin', 'manager', 'jefe'].includes(role);
 
+// 1. ACTUALIZAMOS EL ESQUEMA PARA ACEPTAR COORDENADAS
 const noteSchema = Joi.object({
   texto: Joi.string().min(1).max(2000).required(),
   fecha_visita: Joi.date().iso().allow(null),
   proximos_pasos: Joi.string().max(500).allow('', null),
+  // Nuevos campos para geolocalización (opcionales)
+  latitude: Joi.number().allow(null),
+  longitude: Joi.number().allow(null)
 });
 
 const canOperateOnCustomer = async (customerId, user) => {
@@ -49,6 +52,7 @@ router.get('/:customerId/notes', authMiddleware, async (req, res) => {
   }
 });
 
+// 2. ACTUALIZAMOS EL INSERT PARA GUARDAR LAT/LONG
 router.post('/:customerId/notes', authMiddleware, async (req, res) => {
   const { error, value } = noteSchema.validate(req.body);
   if (error) return res.status(400).json({ message: 'Datos invalidos' });
@@ -60,8 +64,8 @@ router.post('/:customerId/notes', authMiddleware, async (req, res) => {
     if (!allowed) return res.status(403).json({ message: 'No tienes permisos' });
 
     const result = await pool.query(
-      `INSERT INTO customer_notes (customer_id, user_id, texto, fecha_visita, proximos_pasos)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO customer_notes (customer_id, user_id, texto, fecha_visita, proximos_pasos, latitude, longitude)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         customerId,
@@ -69,6 +73,8 @@ router.post('/:customerId/notes', authMiddleware, async (req, res) => {
         value.texto,
         value.fecha_visita ? new Date(value.fecha_visita) : null,
         value.proximos_pasos || null,
+        value.latitude || null,  // Guardamos latitud
+        value.longitude || null  // Guardamos longitud
       ]
     );
     res.status(201).json(result.rows[0]);

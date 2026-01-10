@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react"; // 👈 Importamos useCallback
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+
 import {
   assignCustomer,
   createCustomer,
@@ -12,7 +16,16 @@ import {
   logoutAndRedirect,
   updateCustomer,
 } from "../api";
-import logoWolfHard from "../assets/logo-wolfhard.jpg";
+
+import icon from "leaflet/dist/images/marker-icon.png";
+import iconShadow from "leaflet/dist/images/marker-shadow.png";
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+L.Marker.prototype.options.icon = DefaultIcon;
 
 const MANAGER_ROLES = ["admin", "manager", "jefe"];
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString() : "Sin fecha");
@@ -33,6 +46,7 @@ function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
+  
   const [notesCustomer, setNotesCustomer] = useState(null);
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(false);
@@ -41,7 +55,10 @@ function CustomersPage() {
     fecha_visita: "",
     proximos_pasos: "",
   });
+  const [location, setLocation] = useState(null); 
+  const [gpsLoading, setGpsLoading] = useState(false);
   const [noteError, setNoteError] = useState("");
+
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ localidad: "", sector: "", assigned: "" });
   const token = localStorage.getItem("token");
@@ -61,7 +78,8 @@ function CustomersPage() {
     setError(err?.message || "No pudimos completar la operacion");
   };
 
-  const loadCustomers = async (force = false) => {
+  // ✅ CORRECCIÓN: useCallback para loadCustomers
+  const loadCustomers = useCallback(async (force = false) => {
     setLoading(true);
     setError("");
     try {
@@ -72,17 +90,18 @@ function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
-  const loadUsers = async () => {
+  // ✅ CORRECCIÓN: useCallback para loadUsers y eliminado 'err' no usado
+  const loadUsers = useCallback(async () => {
     if (!isManager) return;
     try {
       const data = await getUsers(token);
       setUsers(Array.isArray(data) ? data : []);
-    } catch (err) {
-      // silenciar error para empleados
+    } catch {
+      // silenciar error para empleados (ya no usamos variable 'err')
     }
-  };
+  }, [token, isManager]);
 
   const loadNotes = async (customer) => {
     if (!customer) return;
@@ -97,6 +116,31 @@ function CustomersPage() {
     } finally {
       setNotesLoading(false);
     }
+  };
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Tu navegador no soporta geolocalización");
+      return;
+    }
+    setGpsLoading(true);
+    setNoteError("");
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+        setGpsLoading(false);
+      },
+      (err) => {
+        console.error(err);
+        setGpsLoading(false);
+        alert("No se pudo obtener ubicación. Verifica permisos.");
+      },
+      { enableHighAccuracy: true }
+    );
   };
 
   const submitNote = async (e) => {
@@ -114,8 +158,11 @@ function CustomersPage() {
           ? new Date(noteForm.fecha_visita).toISOString()
           : null,
         proximos_pasos: noteForm.proximos_pasos,
+        latitude: location?.lat || null,
+        longitude: location?.lng || null
       });
       setNoteForm({ texto: "", fecha_visita: "", proximos_pasos: "" });
+      setLocation(null);
       await loadNotes(notesCustomer);
     } catch (err) {
       setNoteError(err?.message || "No pudimos guardar la nota");
@@ -134,6 +181,7 @@ function CustomersPage() {
     }
   };
 
+  // ✅ CORRECCIÓN: Agregadas funciones a dependencias
   useEffect(() => {
     if (!token) {
       logoutAndRedirect("/");
@@ -141,7 +189,7 @@ function CustomersPage() {
     }
     loadCustomers();
     loadUsers();
-  }, [token]);
+  }, [token, loadCustomers, loadUsers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -156,7 +204,6 @@ function CustomersPage() {
       if (!isManager) {
         delete payload.assigned_to;
       } else if (!payload.assigned_to) {
-        // si jefe no selecciona, asigna a sí mismo
         payload.assigned_to = user?.id;
       }
 
@@ -299,26 +346,10 @@ function CustomersPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <div className="brand">
-          <img src={logoWolfHard} alt="Wolf Hard" className="brand-logo" />
-          <div>
-            Clientes
-            <div className="muted" style={{ fontSize: "0.9rem" }}>
-              CRM Tractores - gestion de cartera por localidad y rol
-            </div>
-          </div>
-        </div>
-        <div className="toolbar">
-          <span className="tag">
-            {customerCounts.total} clientes · {customerCounts.conCorreo} con correo
-          </span>
-          <button className="btn secondary" onClick={() => (window.location.href = "/dashboard")}>
-            Dashboard
-          </button>
-          <button className="btn danger" onClick={() => logoutAndRedirect("/")}>
-            Cerrar sesion
-          </button>
-        </div>
+        <h2 style={{ margin: 0 }}>Gestión de Clientes</h2>
+        <span className="tag">
+           {customerCounts.total} Clientes · {customerCounts.conCorreo} con Email
+        </span>
       </div>
 
       <div className="card" style={{ marginBottom: 14 }}>
@@ -424,8 +455,8 @@ function CustomersPage() {
       <div className="card">
         <div className="page-header" style={{ marginBottom: 6 }}>
           <h3 style={{ margin: 0 }}>Listado</h3>
-          <span className="pill">
-            Jefe/admin ve todo · Empleado gestiona propios y asignados
+          <span className="tag">
+            {isManager ? "Vista Admin" : "Mis Asignados"}
           </span>
         </div>
 
@@ -490,7 +521,7 @@ function CustomersPage() {
                 <th>Telefono</th>
                 <th>Empresa</th>
                 <th>Localidad</th>
-                <th>Sector (rol)</th>
+                <th>Sector</th>
                 <th>Asignado</th>
                 <th style={{ width: 240 }}>Acciones</th>
               </tr>
@@ -524,18 +555,19 @@ function CustomersPage() {
                       >
                         Eliminar
                       </button>
-                  <button className="btn ghost" type="button" onClick={() => loadNotes(c)}>
-                    Notas
-                  </button>
-                  {isManager && (
-                    <select
-                      value={c.assigned_to || ""}
-                      onChange={(e) => handleAssign(c.id, e.target.value)}
-                    >
+                      <button className="btn ghost" type="button" onClick={() => loadNotes(c)}>
+                        Notas
+                      </button>
+                      {isManager && (
+                        <select
+                          value={c.assigned_to || ""}
+                          onChange={(e) => handleAssign(c.id, e.target.value)}
+                          style={{ width: '110px' }}
+                        >
                           <option value="">Asignar...</option>
                           {users.map((u) => (
                             <option key={u.id} value={u.id}>
-                              {u.name} ({u.role})
+                              {u.name}
                             </option>
                           ))}
                         </select>
@@ -555,17 +587,15 @@ function CustomersPage() {
           </table>
         </div>
 
+        {/* --- SECCIÓN HISTORIAL DE CLIENTE --- */}
         {notesCustomer && (
-          <div className="card lift" style={{ marginTop: 12 }}>
+          <div className="card" style={{ marginTop: 12 }}>
             <div className="card-header" style={{ marginBottom: 4 }}>
               <div>
-                <p className="eyebrow">Notas del cliente</p>
+                <p className="muted" style={{fontSize:'0.8rem', textTransform:'uppercase'}}>Historial de Actividad</p>
                 <h3 style={{ margin: "2px 0 0" }}>{notesCustomer.name}</h3>
               </div>
               <div className="toolbar" style={{ marginBottom: 0 }}>
-                <span className="tag">
-                  {notes.length} notas �� {notesLoading ? "cargando" : "listo"}
-                </span>
                 <button className="btn secondary" type="button" onClick={() => loadNotes(notesCustomer)}>
                   Actualizar
                 </button>
@@ -575,75 +605,107 @@ function CustomersPage() {
               </div>
             </div>
 
-            <form onSubmit={submitNote} className="form-grid compact fade-in">
+            <form onSubmit={submitNote} className="form-grid compact">
               <input
                 type="datetime-local"
                 value={noteForm.fecha_visita}
                 onChange={(e) => setNoteForm({ ...noteForm, fecha_visita: e.target.value })}
-                placeholder="Fecha/hora de visita"
               />
               <textarea
-                className="textarea"
                 placeholder="Detalles de la visita, acuerdos, contexto"
                 value={noteForm.texto}
                 onChange={(e) => setNoteForm({ ...noteForm, texto: e.target.value })}
-                rows={3}
+                rows={2}
               />
               <input
                 type="text"
-                placeholder="Proximos pasos / compromisos"
+                placeholder="Proximos pasos"
                 value={noteForm.proximos_pasos}
                 onChange={(e) => setNoteForm({ ...noteForm, proximos_pasos: e.target.value })}
               />
-              <div className="toolbar">
-                <button className="btn" type="submit" disabled={notesLoading}>
-                  Agregar nota
-                </button>
-                <button
+              
+              {/* --- BOTÓN GPS --- */}
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button 
+                  type="button" 
                   className="btn secondary"
-                  type="button"
-                  onClick={() => setNoteForm({ texto: "", fecha_visita: "", proximos_pasos: "" })}
+                  onClick={handleGetLocation}
+                  disabled={gpsLoading}
+                  style={{width: 'auto', background: location ? 'rgba(52, 199, 89, 0.2)' : undefined, color: location ? '#34c759' : undefined, border: location ? '1px solid #34c759' : undefined}}
                 >
-                  Limpiar
+                  {gpsLoading ? "📡 Buscando..." : location ? "✅ Ubicación Lista" : "📍 Registrar Ubicación Actual (GPS)"}
+                </button>
+              </div>
+              {/* ----------------- */}
+
+              <div className="toolbar">
+                <button className="btn" type="submit" disabled={notesLoading || gpsLoading}>
+                  Agregar nota
                 </button>
               </div>
             </form>
 
             {noteError && <p className="error">{noteError}</p>}
-            {notesLoading && <p className="muted">Cargando notas...</p>}
 
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 20 }}>
               {notes.length === 0 && !notesLoading ? (
-                <p className="muted">Aún no hay notas para este cliente.</p>
+                <p className="muted">Aún no hay historial de actividad para este cliente.</p>
               ) : (
-                <div className="timeline">
+                <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
                   {notes.map((note) => (
-                    <div key={note.id} className="timeline-item fade-in">
-                      <div className="timeline-meta">
-                        <span className="status-chip info">{note.user_name || "Equipo"}</span>
-                        <span className="muted small">{formatDateTime(note.created_at)}</span>
-                        {note.fecha_visita && (
-                          <span className="status-chip warning">
-                            Visita: {formatDateTime(note.fecha_visita)}
-                          </span>
-                        )}
+                    <div key={note.id} style={{ background:'rgba(255,255,255,0.03)', padding:'15px', borderRadius:'8px', borderLeft:'3px solid var(--primary)', border:'1px solid var(--border-color)' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'10px', alignItems:'center' }}>
+                         <div>
+                           <span className="tag" style={{marginRight: '10px'}}>{note.user_name || "Equipo"}</span>
+                           <span className="muted small">{formatDateTime(note.created_at)}</span>
+                         </div>
+                         {(isManager || note.user_id === user?.id) && (
+                            <button
+                              className="btn danger"
+                              type="button"
+                              onClick={() => handleDeleteNote(note.id)}
+                              style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                            >
+                              Eliminar
+                            </button>
+                          )}
                       </div>
-                      <p style={{ margin: "6px 0 4px" }}>{note.texto}</p>
+                      
+                      <p style={{ margin: "0 0 10px", fontSize:'1rem' }}>{note.texto}</p>
+                      
                       {note.proximos_pasos && (
-                        <p className="muted small" style={{ margin: "0 0 6px" }}>
-                          Próximos pasos: {note.proximos_pasos}
-                        </p>
+                        <div style={{ background: 'rgba(0,0,0,0.2)', padding:'8px', borderRadius:'4px', marginBottom:'10px' }}>
+                          <small className="muted">Próximos pasos:</small>
+                          <div style={{fontSize:'0.9rem'}}>{note.proximos_pasos}</div>
+                        </div>
                       )}
-                      {(isManager || note.user_id === user?.id) && (
-                        <button
-                          className="btn danger"
-                          type="button"
-                          onClick={() => handleDeleteNote(note.id)}
-                          style={{ padding: "6px 10px", fontSize: "0.85rem" }}
-                        >
-                          Eliminar
-                        </button>
+                      
+                      {/* --- MAPA EMBEBIDO (LEAFLET) --- */}
+                      {note.latitude && note.longitude && (
+                        <div style={{ marginTop: '10px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #444' }}>
+                          <MapContainer 
+                            center={[parseFloat(note.latitude), parseFloat(note.longitude)]} 
+                            zoom={15} 
+                            scrollWheelZoom={false} // Para no hacer zoom sin querer al scrollear la pagina
+                            style={{ height: "200px", width: "100%" }}
+                          >
+                            <TileLayer
+                              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            />
+                            <Marker position={[parseFloat(note.latitude), parseFloat(note.longitude)]}>
+                              <Popup>
+                                Ubicación registrada de visita.
+                              </Popup>
+                            </Marker>
+                          </MapContainer>
+                          <div style={{ padding: '5px 10px', background: '#222', fontSize: '0.8rem', color: '#888' }}>
+                            📍 Ubicación registrada: {note.latitude}, {note.longitude}
+                          </div>
+                        </div>
                       )}
+                      {/* --------------------------------- */}
+
                     </div>
                   ))}
                 </div>
@@ -653,19 +715,11 @@ function CustomersPage() {
         )}
 
         <div style={{ marginTop: 10 }}>
-          <h4 style={{ margin: "8px 0" }}>Distribucion por sector (rol)</h4>
+          <h4 style={{ margin: "8px 0" }}>Resumen por Sector</h4>
           <div className="toolbar">
             {Object.entries(customerCounts.porSector).map(([sector, count]) => (
               <span key={sector} className="tag">
                 {sector}: {count}
-              </span>
-            ))}
-          </div>
-          <h4 style={{ margin: "8px 0" }}>Distribucion por localidad</h4>
-          <div className="toolbar">
-            {Object.entries(customerCounts.porLocalidad).map(([loc, count]) => (
-              <span key={loc} className="tag">
-                {loc}: {count}
               </span>
             ))}
           </div>

@@ -29,12 +29,12 @@ async function apiFetch(path, { method = "GET", token, body, isFormData = false 
   let data = null;
   try {
     data = await res.json();
-  } catch (_) {
+  } catch {
     data = null;
   }
 
-  if (res.status === 401) {
-    clearAuthStorage();
+    if (res.status === 401) {
+      clearAuthStorage();
     const error = new Error(data?.message || "Sesion expirada, vuelve a iniciar sesion");
     error.unauthorized = true;
     throw error;
@@ -214,3 +214,15 @@ export async function updateAgenda(token, id, payload) {
 export async function deleteAgenda(token, id) {
   return apiFetch(`/api/agenda/${id}`, { method: "DELETE", token });
 }
+// Agrega esto en src/api.js
+
+export const getDashboardActivity = async (token) => {
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api"; // O usa tu variable existente
+  
+  const response = await fetch(`${API_URL}/dashboard/activity`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json();
+  if (!response.ok) throw { message: data.message, status: response.status };
+  return data;
+};

@@ -1,3 +1,195 @@
-.app-shell {
-  min-height: 100vh;
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+:root {
+  --primary: #D32F2F;        
+  --primary-dark: #B71C1C;   
+  --bg-sidebar: #121212;     
+  --bg-body: #1e1e1e;        
+  --bg-card: #252525;        
+  --bg-navbar: #252525;      
+  --text-main: #E0E0E0;      
+  --text-muted: #A0A0A0;     
+  --border-color: #333333;
+  --radius: 8px;             
+  --shadow: 0 4px 6px rgba(0,0,0,0.3); 
+  font-family: 'Inter', sans-serif;
+}
+
+/* --- 1. RESET GLOBAL (ADIÓS SCROLLBARS ROJOS) --- */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%; /* Ocupar toda la pantalla siempre */
+  overflow: hidden; /* IMPORTANTE: Prohíbe el scroll en el navegador, lo manejamos nosotros */
+  background-color: var(--bg-body);
+  font-family: 'Inter', sans-serif;
+}
+
+* { box-sizing: border-box; }
+a { text-decoration: none; color: inherit; }
+
+/* Estilo de Scrollbar Universal (Gris Sutil) */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #666; }
+
+/* --- 2. LAYOUT ESTRUCTURAL --- */
+.dashboard-layout {
+  display: flex;
+  width: 100%;
+  height: 100vh; /* Altura exacta de la ventana */
+  overflow: hidden;
+}
+
+/* --- 3. SIDEBAR (Izquierda Fija) --- */
+.sidebar {
+  width: 260px;
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 50;
+  height: 100%; /* Altura completa */
+}
+
+.sidebar-header { height: 64px; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid var(--border-color); gap: 12px; flex-shrink: 0; }
+.sidebar-logo { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; }
+.sidebar-brand { font-weight: 700; font-size: 1.1rem; color: #fff; }
+.sidebar-nav { flex: 1; padding: 20px 0; overflow-y: auto; } /* Scroll solo dentro del menú si es necesario */
+.sidebar-nav ul { list-style: none; padding: 0; margin: 0; }
+
+.nav-link { display: flex; align-items: center; padding: 12px 24px; color: var(--text-muted); transition: 0.2s; border-left: 3px solid transparent; }
+.nav-link:hover { background-color: rgba(255,255,255,0.05); color: #fff; }
+.nav-link.active { background-color: rgba(211, 47, 47, 0.1); color: var(--primary); border-left-color: var(--primary); }
+.nav-link .icon { margin-right: 12px; font-size: 1.1rem; }
+
+.sidebar-footer { padding: 20px; border-top: 1px solid var(--border-color); flex-shrink: 0; }
+.logout-btn { width: 100%; background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); padding: 10px; border-radius: var(--radius); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; }
+.logout-btn:hover { background: #333; color: #fff; }
+
+.mobile-menu-btn, .close-menu-btn, .sidebar-overlay { display: none; }
+
+/* --- 4. ZONA PRINCIPAL (Derecha) --- */
+.main-wrapper { 
+  flex: 1; 
+  display: flex; 
+  flex-direction: column; 
+  height: 100%; 
+  overflow: hidden; /* Contiene el scroll interno */
+  position: relative;
+}
+
+.top-navbar {
+  height: 64px;
+  background-color: var(--bg-navbar);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+  flex-shrink: 0; /* No se aplasta */
+  width: 100%;
+}
+
+.page-title { margin: 0; font-size: 1.2rem; font-weight: 600; }
+.user-profile { display: flex; align-items: center; gap: 12px; }
+.user-name { font-weight: 500; font-size: 0.9rem; }
+.badge { background-color: var(--primary); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; }
+
+/* --- EL SECRETO DEL SCROLL: Content Area --- */
+.content-area {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto; /* AQUÍ está el scroll de la página */
+  background-color: var(--bg-body);
+  width: 100%;
+}
+
+/* --- UI COMPONENTS --- */
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); margin-bottom: 20px; width: 100%; }
+
+.btn { background-color: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: var(--radius); cursor: pointer; font-weight: 500; font-size: 0.9rem; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+.btn:hover { background-color: var(--primary-dark); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn.secondary { background-color: #444; }
+.btn.ghost { background: transparent; border: 1px solid var(--border-color); }
+.btn.danger { background-color: #d32f2f; }
+
+input, select, textarea { background-color: #1a1a1a; border: 1px solid var(--border-color); color: #fff; padding: 10px; border-radius: var(--radius); width: 100%; font-family: inherit; font-size: 1rem; }
+input:focus, select:focus, textarea:focus { outline: 1px solid var(--primary); border-color: var(--primary); }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+
+/* --- TABLAS (Arreglo de Scrollbar Rojo) --- */
+.table-wrapper { width: 100%; overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; min-width: 700px; }
+th { text-align: left; color: var(--text-muted); padding: 12px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; text-transform: uppercase; background: var(--bg-card); white-space: nowrap; position: sticky; top: 0; z-index: 10; }
+td { padding: 14px 12px; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; }
+tr:hover { background-color: rgba(255,255,255,0.02); }
+
+.table-actions { display: flex; gap: 6px; }
+.muted { color: var(--text-muted); }
+.toolbar { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+.tag { background: #333; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; display: inline-block; }
+.error { color: #f48b6a; margin-top: 6px; }
+
+/* Login Centrado */
+.auth-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%; padding: 20px; background-color: #0f0f0f; overflow-y: auto; }
+
+/* =========================================
+   📱 MODO CELULAR / TABLET (Arreglo de Cortes)
+   ========================================= */
+@media (max-width: 768px) {
+  /* Sidebar Drawer */
+  .sidebar { position: fixed; left: -100%; top: 0; height: 100%; width: 85%; max-width: 300px; box-shadow: 4px 0 15px rgba(0,0,0,0.8); transition: left 0.3s ease; }
+  .sidebar.open { left: 0; }
+  
+  .mobile-menu-btn { display: flex; background: none; border: none; color: white; font-size: 1.5rem; margin-right: 15px; cursor: pointer; padding: 0; }
+  .close-menu-btn { display: block; background: none; border: none; color: #aaa; font-size: 1.5rem; margin-left: auto; cursor: pointer; padding: 10px; }
+  
+  .sidebar-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 40; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .sidebar-overlay.visible { opacity: 1; pointer-events: auto; }
+
+  .top-navbar { padding: 0 15px; height: 60px; }
+  .user-name { display: none; }
+  
+  /* Contenido pegado a los bordes sin cortes */
+  .content-area { 
+    padding: 0; 
+    padding-bottom: 80px; /* Espacio extra para el pulgar abajo */
+  }
+  
+  .page-header {
+    flex-direction: column; align-items: flex-start; gap: 10px;
+    padding: 15px; margin-bottom: 0;
+  }
+  
+  /* Tarjetas "Edge-to-Edge" */
+  .card {
+    border-radius: 0;
+    border-left: none; border-right: none;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: none;
+    padding: 20px 15px;
+    margin-bottom: 10px;
+  }
+
+  .form-grid { grid-template-columns: 1fr; gap: 15px; }
+  input, select, .btn { height: 48px; font-size: 16px; }
+  .toolbar { flex-direction: column; width: 100%; }
+  .toolbar > * { width: 100%; margin-top: 5px; }
+
+  /* Tabla con scroll horizontal limpio */
+  .table-wrapper {
+    margin: 0 -15px; 
+    width: calc(100% + 30px);
+    border-radius: 0; border-left: none; border-right: none;
+  }
+  
+  .auth-container { padding: 0; align-items: flex-start; }
+  .auth-container .card { min-height: 100vh; border: none; padding-top: 40px; }
 }

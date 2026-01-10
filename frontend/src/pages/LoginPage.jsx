@@ -3,15 +3,13 @@ import { loginRequest, forgotPassword } from "../api";
 import { Link } from "react-router-dom";
 import logoWolfHard from "../assets/logo-wolfhard.jpg";
 
-const HERO_IMAGE =
-  "https://images.unsplash.com/photo-1610476208552-030dc016d98c?auto=format&fit=crop&w=1400&q=80";
-
 function LoginPage() {
   const [email, setEmail] = useState("admin@empresa.com");
   const [password, setPassword] = useState("123456");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [resetInfo, setResetInfo] = useState({ email: "", message: "", sending: false });
+  // Eliminamos 'email' de resetInfo porque usaremos el principal
+  const [resetInfo, setResetInfo] = useState({ message: "", sending: false });
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -37,21 +35,22 @@ function LoginPage() {
   }
 
   async function handleForgot() {
-    if (!resetInfo.email.trim()) {
-      setResetInfo((prev) => ({ ...prev, message: "Ingresa tu correo para recuperar" }));
+    // CORRECCIÓN: Ahora usa la variable 'email' del formulario principal
+    if (!email.trim()) {
+      setResetInfo((prev) => ({ ...prev, message: "⚠️ Escribe tu correo en el campo de arriba primero." }));
       return;
     }
     setResetInfo((prev) => ({ ...prev, sending: true, message: "" }));
     try {
-      const { data } = await forgotPassword(resetInfo.email);
+      const { data } = await forgotPassword(email);
       setResetInfo((prev) => ({
         ...prev,
-        message: data?.message || "Si el correo existe, enviaremos instrucciones.",
+        message: data?.message || "✅ Si el correo existe, enviaremos instrucciones.",
       }));
     } catch (err) {
       setResetInfo((prev) => ({
         ...prev,
-        message: err?.message || "No pudimos iniciar el proceso de recuperacion",
+        message: err?.message || "❌ Error al solicitar recuperacion",
       }));
     } finally {
       setResetInfo((prev) => ({ ...prev, sending: false }));
@@ -59,104 +58,56 @@ function LoginPage() {
   }
 
   return (
-    <div className="page auth-page">
-      <div className="auth-layout">
-        <div
-          className="auth-hero"
-          style={{
-            backgroundImage: `linear-gradient(135deg, rgba(186, 24, 27, 0.82), rgba(12, 10, 11, 0.55)), url(${HERO_IMAGE})`,
-          }}
-        >
-          <div className="hero-topbar">
-            <div className="brand brand-strong">
-              <img src={logoWolfHard} alt="Wolf Hard" className="brand-logo" />
-              <div>
-                Wolf Hard CRM
-                <div className="muted small">Control de clientes y equipos</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="auth-hero-copy">
-            <p className="eyebrow">Ingreso</p>
-            <h1>Potencia tus relaciones</h1>
-            <p>
-              Gestiona clientes, cotizaciones y servicios de maquinaria pesada en
-              un solo lugar.
-            </p>
-            <div className="hero-tags">
-              <span className="tag">CRM de campo</span>
-              <span className="tag">Equipos y repuestos</span>
-              <span className="tag">Agenda posventa</span>
-            </div>
-            <Link className="btn hero-cta" to="/register">
-              Crea una cuenta
-            </Link>
-          </div>
+    <div className="auth-container">
+      <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '40px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <img 
+            src={logoWolfHard} 
+            alt="Wolf Hard" 
+            style={{ width: '80px', height: '80px', borderRadius: '50%', marginBottom: '15px', objectFit:'cover' }} 
+          />
+          <h2 style={{ margin: '0 0 5px 0' }}>Wolf Hard CRM</h2>
+          <p className="muted" style={{ margin: 0 }}>Acceso Corporativo</p>
         </div>
 
-        <div className="card auth-card">
-          <div className="auth-card-header">
-            <div>
-              <p className="eyebrow" style={{ marginBottom: 6 }}>
-                Acceso
-              </p>
-              <h3 style={{ margin: 0 }}>Iniciar sesion</h3>
-              <p className="muted small">
-                Usa tu correo corporativo para ingresar al CRM de Wolf Hard.
-              </p>
-            </div>
-            <div className="auth-badge">Wolf Hard</div>
-          </div>
-          <form onSubmit={handleSubmit} className="form-grid">
-            <input
-              type="email"
-              placeholder="Correo"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <input
+            type="email"
+            placeholder="Correo electrónico"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Contraseña"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          
+          <button className="btn" type="submit" disabled={loading} style={{ marginTop: '10px' }}>
+            {loading ? "Ingresando..." : "Iniciar Sesión"}
+          </button>
+        </form>
 
-            <input
-              type="password"
-              placeholder="Contrasena"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+        {error && <p className="error" style={{ textAlign: 'center' }}>{error}</p>}
 
-            <button className="btn" type="submit" disabled={loading}>
-              {loading ? "Ingresando..." : "Entrar"}
+        <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.9rem' }}>
+          <p className="muted">
+            ¿Olvidaste tu contraseña?{" "}
+            <button 
+              onClick={handleForgot} 
+              disabled={resetInfo.sending}
+              style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              {resetInfo.sending ? "Enviando..." : "Recuperar"}
             </button>
-
-            {error && <p className="error">{error}</p>}
-          </form>
-          <p className="muted" style={{ marginTop: 10 }}>
-            Sin cuenta? <Link to="/register">Crear cuenta</Link>
           </p>
-          <div className="card" style={{ marginTop: 10, padding: 12 }}>
-            <p className="eyebrow" style={{ marginBottom: 6 }}>
-              Olvide mi contrasena
-            </p>
-            <div className="form-grid compact">
-              <input
-                type="email"
-                placeholder="Correo para recuperar"
-                value={resetInfo.email}
-                onChange={(e) => setResetInfo({ ...resetInfo, email: e.target.value })}
-              />
-              <div className="toolbar" style={{ marginBottom: 0 }}>
-                <button
-                  className="btn secondary"
-                  type="button"
-                  onClick={handleForgot}
-                  disabled={resetInfo.sending}
-                >
-                  {resetInfo.sending ? "Enviando..." : "Enviar instrucciones"}
-                </button>
-              </div>
-            </div>
-            {resetInfo.message && <p className="muted small">{resetInfo.message}</p>}
+          {resetInfo.message && <p className="muted small" style={{marginTop: '5px'}}>{resetInfo.message}</p>}
+          
+          <div style={{ marginTop: '15px', borderTop: '1px solid var(--border-color)', paddingTop: '15px' }}>
+             <Link to="/register" style={{ color: 'var(--text-main)' }}>¿No tienes cuenta? Regístrate</Link>
           </div>
         </div>
       </div>

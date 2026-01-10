@@ -19,77 +19,64 @@ function ResetPage() {
   async function handleReset(e) {
     e.preventDefault();
     if (!token) return;
-    if (!password || password.length < 6) {
-      setStatus({ message: "La contrasena debe tener al menos 6 caracteres", type: "error" });
-      return;
-    }
     if (password !== confirm) {
       setStatus({ message: "Las contrasenas no coinciden", type: "error" });
       return;
     }
     setLoading(true);
-    setStatus({ message: "", type: "" });
     try {
       const { ok, data } = await resetPassword(token, password);
       if (!ok) {
-        setStatus({ message: data?.message || "No pudimos actualizar la contrasena", type: "error" });
+        setStatus({ message: data?.message || "Error al actualizar", type: "error" });
         return;
       }
-      setStatus({ message: data?.message || "Contrasena actualizada. Ya puedes iniciar sesion.", type: "success" });
+      setStatus({ message: "Contrasena actualizada con exito.", type: "success" });
       setPassword("");
       setConfirm("");
     } catch (err) {
-      setStatus({ message: err?.message || "No pudimos actualizar la contrasena", type: "error" });
+      setStatus({ message: err?.message || "Error de servidor", type: "error" });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="page auth-page">
-      <div className="card auth-card" style={{ maxWidth: 520, margin: "0 auto" }}>
-        <div className="auth-card-header">
-          <div>
-            <p className="eyebrow" style={{ marginBottom: 6 }}>
-              Recuperar acceso
-            </p>
-            <h3 style={{ margin: 0 }}>Restablecer contrasena</h3>
-            <p className="muted small">
-              Ingresa tu nueva contrasena para completar el cambio.
-            </p>
-          </div>
-        </div>
-        {!token && (
-          <p className="error">Falta el token. Revisa el enlace enviado a tu correo.</p>
-        )}
-        <form onSubmit={handleReset} className="form-grid">
+    <div className="auth-container">
+      <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '40px' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Restablecer Contraseña</h2>
+        
+        {!token && <p className="error" style={{textAlign:'center'}}>Enlace inválido o expirado.</p>}
+
+        <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <input
             type="password"
-            placeholder="Nueva contrasena"
+            placeholder="Nueva contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={!token || loading}
           />
           <input
             type="password"
-            placeholder="Confirmar contrasena"
+            placeholder="Confirmar contraseña"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             disabled={!token || loading}
           />
-          <div className="toolbar">
-            <button className="btn" type="submit" disabled={!token || loading}>
-              {loading ? "Guardando..." : "Actualizar contrasena"}
-            </button>
-            <Link className="btn secondary" to="/">
-              Volver al login
-            </Link>
-          </div>
+          <button className="btn" type="submit" disabled={!token || loading}>
+            {loading ? "Guardando..." : "Actualizar"}
+          </button>
         </form>
+
         {status.message && (
-          <p className={status.type === "error" ? "error" : "muted"} style={{ marginTop: 8 }}>
+          <p style={{ textAlign: 'center', marginTop: '15px', color: status.type === 'error' ? '#f48b6a' : '#4caf50' }}>
             {status.message}
           </p>
+        )}
+        
+        {status.type === 'success' && (
+           <div style={{textAlign:'center', marginTop:'10px'}}>
+             <Link to="/" className="btn secondary">Ir al Login</Link>
+           </div>
         )}
       </div>
     </div>
