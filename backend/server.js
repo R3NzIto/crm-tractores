@@ -13,8 +13,10 @@ const agendaRoutes = require('./routes/agendaRoutes');
 const userRoutes = require('./routes/userRoutes');
 const customerAssignRoutes = require('./routes/customerAssignRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes'); // <--- NUEVA RUTA IMPORTADA
+const customerUnitsRoutes = require('./routes/customerUnitsRoutes');
 
 const app = express();
+
 
 // --- CONFIGURACIÓN DE CORS ---
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -64,7 +66,7 @@ const apiLimiter = rateLimit({
 app.get('/', (req, res) => {
     res.send('API CRM Tractores OK');
 });
-
+app.use('/api/customers', customerUnitsRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api', apiLimiter);
 app.use('/api/customers', customerRoutes);
@@ -73,6 +75,9 @@ app.use('/api/customers', customerNotesRoutes);
 app.use('/api/agenda', agendaRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dashboard', dashboardRoutes); // <--- NUEVA RUTA CONECTADA AQUÍ
+
+
+// --- CONFIGURACIÓN DEL SERVIDOR ---
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

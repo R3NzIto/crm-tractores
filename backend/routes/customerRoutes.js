@@ -25,28 +25,47 @@ const customerSchema = Joi.object({
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    let result;
+    const { machine } = req.query; // <--- Recibimos el filtro de maquinaria
+    let queryBase;
+    const params = [];
 
-    if (canManageAll(req.user.role)) {
-      result = await pool.query(
-        `SELECT c.*, u.name AS created_by_name, a.name AS assigned_to_name
-         FROM customers c
-         LEFT JOIN users u ON c.created_by = u.id
-         LEFT JOIN users a ON c.assigned_to = a.id
-         ORDER BY c.id DESC`
-      );
+    // Consulta Base Inteligente
+    if (machine) {
+      // PUNTO 3: Si busca maquinaria, hacemos JOIN con sold_units
+      queryBase = `
+        SELECT DISTINCT c.*, u.name AS created_by_name, a.name AS assigned_to_name
+        FROM customers c
+        JOIN sold_units su ON c.id = su.customer_id
+        LEFT JOIN users u ON c.created_by = u.id
+        LEFT JOIN users a ON c.assigned_to = a.id
+        WHERE su.model ILIKE $1
+      `;
+      params.push(`%${machine}%`);
     } else {
-      result = await pool.query(
-        `SELECT c.*, u.name AS created_by_name, a.name AS assigned_to_name
-         FROM customers c
-         LEFT JOIN users u ON c.created_by = u.id
-         LEFT JOIN users a ON c.assigned_to = a.id
-         WHERE c.created_by = $1 OR c.assigned_to = $1
-         ORDER BY c.id DESC`,
-        [req.user.id]
-      );
+      // Consulta normal
+      queryBase = `
+        SELECT c.*, u.name AS created_by_name, a.name AS assigned_to_name
+        FROM customers c
+        LEFT JOIN users u ON c.created_by = u.id
+        LEFT JOIN users a ON c.assigned_to = a.id
+        WHERE 1=1
+      `;
     }
 
+    // Filtros de Rol (Si no es jefe, solo ve lo suyo)
+    if (!canManageAll(req.user.role)) {
+      if (machine) {
+        queryBase += ` AND (c.created_by = $2 OR c.assigned_to = $2)`;
+        params.push(req.user.id);
+      } else {
+        queryBase += ` AND (c.created_by = $1 OR c.assigned_to = $1)`;
+        params.push(req.user.id);
+      }
+    }
+
+    queryBase += ` ORDER BY c.id DESC`;
+
+    const result = await pool.query(queryBase, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener clientes:', error);

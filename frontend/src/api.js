@@ -226,3 +226,61 @@ export const getDashboardActivity = async (token) => {
   if (!response.ok) throw { message: data.message, status: response.status };
   return data;
 };
+
+export const getDashboardStats = async (token) => {
+  // Asegúrate de usar tu variable de entorno correcta, aquí pongo el ejemplo directo
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api"; 
+  
+  const response = await fetch(`${API_URL}/dashboard/stats`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json();
+  if (!response.ok) throw { message: data.message, status: response.status };
+  return data;
+};
+
+// --- UNIDADES / MAQUINARIA ---
+
+export const getCustomerUnits = async (token, customerId) => {
+  // AGREGADO: /api antes de /customers
+  const response = await fetch(`${API_URL}/api/customers/${customerId}/units`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return await response.json();
+};
+
+export const createCustomerUnit = async (token, customerId, data) => {
+  // AGREGADO: /api antes de /customers
+  const response = await fetch(`${API_URL}/api/customers/${customerId}/units`, {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}` 
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Error guardando unidad");
+  return await response.json();
+};
+
+export const deleteCustomerUnit = async (token, customerId, unitId) => {
+  // AGREGADO: /api antes de /customers
+  const response = await fetch(`${API_URL}/api/customers/${customerId}/units/${unitId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Error eliminando unidad");
+};
+
+export const updateCustomerUnit = async (token, customerId, unitId, data) => {
+  const response = await fetch(`${API_URL}/api/customers/${customerId}/units/${unitId}`, {
+    method: "PUT",
+    headers: { 
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}` 
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Error actualizando unidad");
+  return await response.json();
+};
