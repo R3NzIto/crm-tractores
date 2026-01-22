@@ -17,6 +17,7 @@ const customerUnitsRoutes = require('./routes/customerUnitsRoutes');
 
 
 const app = express();
+app.set('trust proxy', 1); 
 
 
 // --- CONFIGURACIÓN DE CORS ---
