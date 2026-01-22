@@ -21,14 +21,15 @@ router.get('/:customerId/units', authMiddleware, async (req, res) => {
 // POST: Agregar unidad
 router.post('/:customerId/units', authMiddleware, async (req, res) => {
   const { customerId } = req.params;
-  const { model, year, hp, accessories, sale_date } = req.body;
+  // 👇 Agregamos intervention_date
+  const { model, year, hp, accessories, sale_date, status, interventions, intervention_date } = req.body;
 
   try {
     const result = await pool.query(
-      `INSERT INTO sold_units (customer_id, model, year, hp, accessories, sale_date)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO sold_units (customer_id, model, year, hp, accessories, sale_date, status, interventions, intervention_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [customerId, model, year, hp, accessories, sale_date]
+      [customerId, model, year, hp, accessories, sale_date, status || 'SOLD', interventions || '', intervention_date || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -40,21 +41,19 @@ router.post('/:customerId/units', authMiddleware, async (req, res) => {
 // PUT: Editar unidad
 router.put('/:customerId/units/:unitId', authMiddleware, async (req, res) => {
   const { unitId } = req.params;
-  const { model, year, hp, accessories, sale_date } = req.body;
+  // 👇 Agregamos intervention_date
+  const { model, year, hp, accessories, sale_date, status, interventions, intervention_date } = req.body;
 
   try {
     const result = await pool.query(
       `UPDATE sold_units 
-       SET model = $1, year = $2, hp = $3, accessories = $4, sale_date = $5
-       WHERE id = $6
+       SET model = $1, year = $2, hp = $3, accessories = $4, sale_date = $5, status = $6, interventions = $7, intervention_date = $8
+       WHERE id = $9
        RETURNING *`,
-      [model, year, hp, accessories, sale_date, unitId]
+      [model, year, hp, accessories, sale_date, status || 'SOLD', interventions || '', intervention_date || null, unitId]
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Unidad no encontrada' });
-    }
-
+    if (result.rowCount === 0) return res.status(404).json({ message: 'Unidad no encontrada' });
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);

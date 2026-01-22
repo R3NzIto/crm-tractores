@@ -12,8 +12,9 @@ const customerNotesRoutes = require('./routes/customerNotesRoutes');
 const agendaRoutes = require('./routes/agendaRoutes');
 const userRoutes = require('./routes/userRoutes');
 const customerAssignRoutes = require('./routes/customerAssignRoutes');
-const dashboardRoutes = require('./routes/dashboardRoutes'); // <--- NUEVA RUTA IMPORTADA
+const dashboardRoutes = require('./routes/dashboardRoutes'); 
 const customerUnitsRoutes = require('./routes/customerUnitsRoutes');
+
 
 const app = express();
 
@@ -74,7 +75,8 @@ app.use('/api/customers', customerAssignRoutes);
 app.use('/api/customers', customerNotesRoutes);
 app.use('/api/agenda', agendaRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/dashboard', dashboardRoutes); // <--- NUEVA RUTA CONECTADA AQUÍ
+app.use('/api/dashboard', dashboardRoutes); 
+
 
 
 // --- CONFIGURACIÓN DEL SERVIDOR ---

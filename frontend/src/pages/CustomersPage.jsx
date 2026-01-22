@@ -45,7 +45,6 @@ function CustomersPage() {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   
-  // Estado para controlar qué menú desplegable está abierto
   const [openMenuId, setOpenMenuId] = useState(null);
 
   // Estados Acciones
@@ -61,7 +60,11 @@ function CustomersPage() {
   // Estados Unidades
   const [unitsCustomer, setUnitsCustomer] = useState(null);
   const [units, setUnits] = useState([]);
-  const [unitForm, setUnitForm] = useState({ model: "", year: "", hp: "", accessories: "", sale_date: "" });
+  const [unitForm, setUnitForm] = useState({ model: "", year: "", hp: "", accessories: "", sale_date: "", interventions: "", intervention_date: "" });
+  
+  // 👇 NUEVOS ESTADOS PARA AGREGAR AL HISTORIAL
+  const [newIntervention, setNewIntervention] = useState({ date: "", text: "" });
+
   const [unitsLoading, setUnitsLoading] = useState(false);
   const [editingUnitId, setEditingUnitId] = useState(null);
 
@@ -85,11 +88,11 @@ function CustomersPage() {
     setError(err?.message || "No pudimos completar la operacion");
   };
 
-  const loadCustomers = useCallback(async (force = false, machineFilter = "") => {
+  const loadCustomers = useCallback(async ( machineFilter = "") => {
     setLoading(true);
     setError("");
     try {
-      const data = await getCustomers(token, { force, machine: machineFilter });
+      const data = await getCustomers(token, { machine: machineFilter, type: 'CLIENT' });
       setCustomers(Array.isArray(data) ? data : []);
     } catch (err) {
       handleApiError(err);
@@ -120,7 +123,7 @@ function CustomersPage() {
     setNoteError("");
     setActionType('CALL');
     setLocation(null);
-    setOpenMenuId(null); // Cerrar menú al abrir notas
+    setOpenMenuId(null); 
     try {
       const data = await getCustomerNotes(token, customer.id);
       setNotes(Array.isArray(data) ? data : []);
@@ -137,8 +140,9 @@ function CustomersPage() {
     setUnitsCustomer(customer);
     setUnitsLoading(true);
     setEditingUnitId(null);
-    setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "" });
-    setOpenMenuId(null); // Cerrar menú al abrir unidades
+    setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "", interventions: "", intervention_date: "" });
+    setNewIntervention({ date: "", text: "" }); // Limpiar campos nuevos
+    setOpenMenuId(null); 
     try {
       const data = await getCustomerUnits(token, customer.id);
       setUnits(Array.isArray(data) ? data : []);
@@ -156,13 +160,44 @@ function CustomersPage() {
       year: unit.year || "",
       hp: unit.hp || "",
       accessories: unit.accessories || "",
-      sale_date: unit.sale_date ? unit.sale_date.split('T')[0] : ""
+      sale_date: unit.sale_date ? unit.sale_date.split('T')[0] : "",
+      interventions: unit.interventions || "",
+      intervention_date: unit.intervention_date ? unit.intervention_date.split('T')[0] : "" 
     });
+    // Seteamos la fecha de hoy por defecto para una nueva entrada
+    setNewIntervention({ date: new Date().toISOString().split('T')[0], text: "" });
   };
 
   const cancelEditUnit = () => {
     setEditingUnitId(null);
-    setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "" });
+    setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "", interventions: "", intervention_date: "" });
+    setNewIntervention({ date: "", text: "" });
+  };
+
+  // 👇 FUNCIÓN MAGICA: Agrega la línea al historial sin borrar lo anterior
+  const addToHistory = () => {
+    if (!newIntervention.date || !newIntervention.text.trim()) {
+      alert("Completa fecha y detalle para agregar al historial.");
+      return;
+    }
+
+    // Formato: DD/MM/YYYY: Detalle
+    const dateObj = new Date(newIntervention.date + "T12:00:00"); // Truco para evitar problemas de zona horaria
+    const dateStr = dateObj.toLocaleDateString();
+    const newLine = `${dateStr}: ${newIntervention.text}`;
+
+    // Sumamos al texto existente (si ya había algo, agregamos salto de línea)
+    const currentHistory = unitForm.interventions || "";
+    const updatedHistory = currentHistory ? `${currentHistory}\n${newLine}` : newLine;
+
+    setUnitForm({ 
+      ...unitForm, 
+      interventions: updatedHistory,
+      intervention_date: newIntervention.date // Actualizamos también la "última fecha"
+    });
+
+    // Limpiamos el campo de escritura rápida
+    setNewIntervention({ ...newIntervention, text: "" });
   };
 
   const submitUnit = async (e) => {
@@ -177,7 +212,8 @@ function CustomersPage() {
       } else {
         await createCustomerUnit(token, unitsCustomer.id, unitForm);
       }
-      setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "" });
+      setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "", interventions: "", intervention_date: "" });
+      setNewIntervention({ date: "", text: "" });
       setEditingUnitId(null);
       await loadUnits(unitsCustomer);
     } catch (err) {
@@ -260,11 +296,13 @@ function CustomersPage() {
     setError(""); 
     if (!form.name.trim()) { setError("Nombre obligatorio"); return; }
     try {
-      const p = { ...form }; 
-      if (!isManager) delete p.assigned_to; 
-      else if (!p.assigned_to) p.assigned_to = user?.id;
-      if (editingId) await updateCustomer(token, editingId, p); 
-      else await createCustomer(token, p);
+      const payload = { ...form, type: 'CLIENT' };
+      if (!isManager) delete payload.assigned_to;
+      else if (!payload.assigned_to) payload.assigned_to = user?.id;
+      
+      if (editingId) await updateCustomer(token, editingId, payload); 
+      else await createCustomer(token, payload);
+      
       setForm({ name: "", email: "", phone: "", company: "", localidad: "", sector: "", assigned_to: "" }); 
       setEditingId(null); 
       await loadCustomers(true);
@@ -290,7 +328,7 @@ function CustomersPage() {
       sector: c.sector||"", 
       assigned_to: c.assigned_to||"" 
     }); 
-    setOpenMenuId(null); // Cerrar menú
+    setOpenMenuId(null); 
   };
 
   const cancelEdit = () => { 
@@ -298,11 +336,30 @@ function CustomersPage() {
     setForm({ name: "", email: "", phone: "", company: "", localidad: "", sector: "", assigned_to: "" }); 
   };
 
+  // Buscamos esta función y la reemplazamos:
   const handleAssign = async (cId, uId) => { 
     try { 
+      // 1. Mandamos el cambio al servidor (para que guarde y envíe mail)
       await assignCustomer(token, cId, uId); 
-      await loadCustomers(true); 
-    } catch (err) { handleApiError(err); } 
+      
+      // 2. ACTUALIZACIÓN INSTANTÁNEA (OPTIMISTA)
+      // En vez de recargar todo, actualizamos solo este cliente en la memoria
+      setCustomers(prevCustomers => prevCustomers.map(customer => {
+        if (customer.id === cId) {
+          // Si es el cliente que tocamos, le cambiamos el assigned_to
+          return { ...customer, assigned_to: uId ? parseInt(uId) : null };
+        }
+        return customer; // Los demás quedan igual
+      }));
+
+      // 3. Cerramos el menú
+      setOpenMenuId(null); 
+
+    } catch (err) { 
+      handleApiError(err); 
+      // Si falla, recargamos la lista para asegurarnos de ver la verdad
+      loadCustomers(true);
+    } 
   };
 
   const handleImport = async (e) => { 
@@ -317,7 +374,6 @@ function CustomersPage() {
     finally { setImporting(false); e.target.value = ""; } 
   };
 
-  // Función para abrir/cerrar el menú desplegable
   const toggleMenu = (id) => {
     if (openMenuId === id) {
       setOpenMenuId(null);
@@ -352,7 +408,6 @@ function CustomersPage() {
 
   return (
     <div className="page" onClick={() => setOpenMenuId(null)}>
-      {/* Al hacer click fuera, se cierran los menús */}
 
       <div className="page-header">
         <h2 style={{ margin: 0 }}>Gestión de Clientes</h2>
@@ -383,7 +438,7 @@ function CustomersPage() {
         <div className="page-header" style={{ marginBottom: 6 }}>
            <h3 style={{margin:0}}>Listado</h3>
            <div style={{display:'flex', gap:5}}>
-             <input type="text" placeholder="🔍 Buscar por Maquinaria (Ej: John Deere)..." value={machineSearch} onChange={(e) => setMachineSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleMachineSearch()} style={{ width: 280, borderColor: '#f0b43a' }} />
+             <input type="text" placeholder="🔍 Buscar por Maquinaria..." value={machineSearch} onChange={(e) => setMachineSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleMachineSearch()} style={{ width: 280, borderColor: '#f0b43a' }} />
              <button className="btn" style={{background:'#f0b43a', color:'#000'}} onClick={handleMachineSearch}>Buscar</button>
              {machineSearch && <button className="btn secondary" onClick={() => {setMachineSearch(""); loadCustomers(true, "");}}>X</button>}
            </div>
@@ -400,62 +455,25 @@ function CustomersPage() {
           <table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Teléfono</th> {/* Volvió teléfono */}
-                <th>Localidad</th>
-                <th>Sector</th>
-                <th style={{width: 120}}>Opciones</th> {/* Nueva columna desplegable */}
+                <th>ID</th><th>Nombre</th><th>Teléfono</th><th>Localidad</th><th>Sector</th><th style={{width: 120}}>Opciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredCustomers.map(c => (
                 <tr key={c.id}>
-                  <td>{c.id}</td>
-                  <td>{c.name}</td>
-                  <td className="muted">{c.phone || "-"}</td>
-                  <td>{c.localidad||"-"}</td>
-                  <td>{c.sector||"-"}</td>
+                  <td>{c.id}</td><td>{c.name}</td><td className="muted">{c.phone || "-"}</td><td>{c.localidad||"-"}</td><td>{c.sector||"-"}</td>
                   
-                  {/* Celda del Menú Desplegable */}
                   <td style={{position: 'relative'}}>
-                     <button 
-                        className="btn secondary" 
-                        onClick={(e) => { e.stopPropagation(); toggleMenu(c.id); }}
-                        style={{width: '100%', display: 'flex', justifyContent: 'center', gap: '5px'}}
-                     >
-                        ⚙️ ▼
-                     </button>
-                     
-                     {/* El Dropdown flotante */}
+                     <button className="btn secondary" onClick={(e) => { e.stopPropagation(); toggleMenu(c.id); }} style={{width: '100%', display: 'flex', justifyContent: 'center', gap: '5px'}}>⚙️ ▼</button>
                      {openMenuId === c.id && (
-                       <div style={{
-                         position: 'absolute',
-                         right: 0,
-                         top: '100%',
-                         background: '#222',
-                         border: '1px solid #444',
-                         borderRadius: '8px',
-                         boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-                         zIndex: 100,
-                         minWidth: '160px',
-                         overflow: 'hidden',
-                         display: 'flex',
-                         flexDirection: 'column'
-                       }}>
+                       <div style={{position: 'absolute', right: 0, top: '100%', background: '#222', border: '1px solid #444', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.5)', zIndex: 100, minWidth: '160px', overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
                          <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => startEdit(c)}>✏️ Editar Datos</button>
                          <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => loadUnits(c)}>🚜 Ver Unidades</button>
                          <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => loadNotes(c)}>📝 Notas/Visitas</button>
-                         
                          {isManager && (
                             <div style={{padding: '5px 10px', borderTop: '1px solid #333'}}>
                                 <label style={{fontSize: '0.7rem', color:'#888'}}>Asignar a:</label>
-                                <select 
-                                    value={c.assigned_to || ""} 
-                                    onChange={(e) => handleAssign(c.id, e.target.value)} 
-                                    style={{width: '100%', marginTop:2, fontSize:'0.8rem', padding:'2px'}}
-                                    onClick={(e) => e.stopPropagation()} 
-                                >
+                                <select value={c.assigned_to || ""} onChange={(e) => handleAssign(c.id, e.target.value)} style={{width: '100%', marginTop:2, fontSize:'0.8rem', padding:'2px'}} onClick={(e) => e.stopPropagation()}>
                                     <option value="">Nadie</option>
                                     {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                 </select>
@@ -484,8 +502,46 @@ function CustomersPage() {
               <input type="number" placeholder="Año" value={unitForm.year} onChange={e => setUnitForm({...unitForm, year: e.target.value})} />
               <input type="number" placeholder="HP" value={unitForm.hp} onChange={e => setUnitForm({...unitForm, hp: e.target.value})} />
               <input type="date" value={unitForm.sale_date} onChange={e => setUnitForm({...unitForm, sale_date: e.target.value})} />
-              <input type="text" placeholder="Accesorios" value={unitForm.accessories} onChange={e => setUnitForm({...unitForm, accessories: e.target.value})} style={{gridColumn: '1 / -1'}} />
+              <input type="text" placeholder="Accesorios" value={unitForm.accessories} onChange={e => setUnitForm({...unitForm, accessories: e.target.value})} />
               
+              {/* 👇 SECCIÓN DE INTERVENCIONES */}
+              <div style={{gridColumn: '1 / -1', background:'rgba(255,255,255,0.03)', padding:10, borderRadius:6, marginTop:5}}>
+                 <label style={{display:'block', fontSize:'0.9rem', color:'#f0b43a', marginBottom:'8px'}}>🔧 Hoja de Vida / Service:</label>
+                 
+                 {/* 1. AGREGAR NUEVA LÍNEA */}
+                 <div style={{display:'flex', gap:10, marginBottom:10}}>
+                   <input 
+                     type="date" 
+                     value={newIntervention.date} 
+                     onChange={e => setNewIntervention({...newIntervention, date: e.target.value})}
+                     style={{width:'150px'}}
+                   />
+                   <input 
+                     type="text" 
+                     placeholder="Detalle (ej: Cambio de aceite)" 
+                     value={newIntervention.text} 
+                     onChange={e => setNewIntervention({...newIntervention, text: e.target.value})}
+                     style={{flex:1}}
+                   />
+                   <button 
+                     type="button" 
+                     className="btn secondary" 
+                     onClick={addToHistory}
+                     style={{whiteSpace:'nowrap'}}
+                   >
+                     Agregar (+)
+                   </button>
+                 </div>
+
+                 {/* 2. HISTORIAL EDITABLE */}
+                 <textarea 
+                   placeholder="El historial aparecerá aquí..." 
+                   value={unitForm.interventions} 
+                   onChange={e => setUnitForm({...unitForm, interventions: e.target.value})}
+                   style={{width:'100%', minHeight: '80px', resize: 'vertical', fontFamily:'monospace', fontSize:'0.85rem'}}
+                 />
+              </div>
+
               <div className="toolbar" style={{gridColumn: '1 / -1'}}>
                  <button className="btn" style={{background: '#f0b43a', color:'#000'}} type="submit" disabled={unitsLoading}>
                    {unitsLoading ? "Guardando..." : (editingUnitId ? "💾 Guardar Cambios" : "➕ Agregar Unidad")}
@@ -498,18 +554,29 @@ function CustomersPage() {
                {units.length === 0 ? <p className="muted">Sin unidades.</p> : (
                  <div style={{display:'grid', gap:'10px'}}>
                     {units.map(unit => (
-                      <div key={unit.id} style={{background: 'rgba(255,255,255,0.05)', padding: '10px 15px', borderRadius:'6px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                         <div>
-                            <strong style={{fontSize:'1.1rem', color:'#f0b43a'}}>{unit.model}</strong>
-                            <div className="muted small">
-                               {unit.year ? `Año ${unit.year}` : ''} {unit.hp ? `• ${unit.hp} HP` : ''} • {formatDate(unit.sale_date)}
-                            </div>
-                            {unit.accessories && <div style={{fontSize:'0.9rem', marginTop:2}}>🔧 {unit.accessories}</div>}
+                      <div key={unit.id} style={{background: 'rgba(255,255,255,0.05)', padding: '10px 15px', borderRadius:'6px', display:'flex', flexDirection:'column', gap:'5px'}}>
+                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                             <div>
+                                <strong style={{fontSize:'1.1rem', color:'#f0b43a'}}>{unit.model}</strong>
+                                <span className="muted small" style={{marginLeft: 10}}>
+                                   {unit.year ? `Año ${unit.year}` : ''} {unit.hp ? `• ${unit.hp} HP` : ''} • {formatDate(unit.sale_date)}
+                                </span>
+                             </div>
+                             <div style={{display:'flex', gap:5}}>
+                                <button className="btn secondary" style={{padding: '5px 10px'}} onClick={() => startEditUnit(unit)}>✏️</button>
+                                <button className="btn danger" style={{padding: '5px 10px'}} onClick={() => handleDeleteUnit(unit.id)}>X</button>
+                             </div>
                          </div>
-                         <div style={{display:'flex', gap:5}}>
-                            <button className="btn secondary" style={{padding: '5px 10px'}} onClick={() => startEditUnit(unit)}>✏️</button>
-                            <button className="btn danger" style={{padding: '5px 10px'}} onClick={() => handleDeleteUnit(unit.id)}>X</button>
-                         </div>
+                         
+                         {unit.accessories && <div style={{fontSize:'0.9rem', color:'#bbb'}}>🔧 {unit.accessories}</div>}
+                         
+                         {/* MOSTRAMOS EL HISTORIAL FORMATEADO */}
+                         {unit.interventions && (
+                           <div style={{marginTop: 5, padding: '8px', background: 'rgba(240, 180, 58, 0.1)', borderRadius: '4px', borderLeft: '3px solid #f0b43a'}}>
+                             <strong style={{display:'block', fontSize:'0.8rem', color:'#f0b43a', marginBottom:2}}>📝 HISTORIAL DE SERVICIOS:</strong>
+                             <div style={{whiteSpace: 'pre-wrap', fontSize:'0.9rem', fontFamily:'monospace'}}>{unit.interventions}</div>
+                           </div>
+                         )}
                       </div>
                     ))}
                  </div>
@@ -518,7 +585,7 @@ function CustomersPage() {
            </div>
         )}
 
-        {/* --- CENTRO DE ACCIONES (NOTAS/GPS) --- */}
+        {/* ... (Resto de Notas y Visitas se mantiene igual) ... */}
         {notesCustomer && (
           <div className="card" style={{ marginTop: 20, border: '1px solid var(--primary)' }} onClick={(e) => e.stopPropagation()}>
             <div className="card-header">

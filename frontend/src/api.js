@@ -1,19 +1,12 @@
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
-const CACHE_TTL_MS = 30_000;
 
-let customersCache = null;
-let customersCacheAt = 0;
-
-const clearCache = () => {
-  customersCache = null;
-  customersCacheAt = 0;
-};
-
+// Función auxiliar para limpiar sesión
 const clearAuthStorage = () => {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
 };
 
+// Función genérica para peticiones
 async function apiFetch(path, { method = "GET", token, body, isFormData = false } = {}) {
   const headers = {};
   if (!isFormData) headers["Content-Type"] = "application/json";
@@ -33,8 +26,8 @@ async function apiFetch(path, { method = "GET", token, body, isFormData = false 
     data = null;
   }
 
-    if (res.status === 401) {
-      clearAuthStorage();
+  if (res.status === 401) {
+    clearAuthStorage();
     const error = new Error(data?.message || "Sesion expirada, vuelve a iniciar sesion");
     error.unauthorized = true;
     throw error;
@@ -49,6 +42,8 @@ async function apiFetch(path, { method = "GET", token, body, isFormData = false 
 
   return data;
 }
+
+// --- AUTENTICACIÓN ---
 
 export async function loginRequest(email, password) {
   const res = await fetch(`${API_URL}/api/auth/login`, {
@@ -96,89 +91,81 @@ export async function resetPassword(token, password) {
   return { ok: res.ok, data };
 }
 
-export async function getCustomers(token, { force = false } = {}) {
-  const now = Date.now();
-
-  if (!force && customersCache && now - customersCacheAt < CACHE_TTL_MS) {
-    return customersCache;
-  }
-
-  const data = await apiFetch("/api/customers", { token });
-  customersCache = data;
-  customersCacheAt = now;
-  return data;
+export function logoutAndRedirect(path = "/") {
+  clearAuthStorage();
+  window.location.href = path;
 }
+
+// --- CLIENTES ---
+
+export const getCustomers = async (token, { machine = "", type = "" } = {}) => {
+  let url = `${API_URL}/api/customers?`;
+  if (machine) url += `&machine=${encodeURIComponent(machine)}`;
+  if (type) url += `&type=${encodeURIComponent(type)}`;
+  
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (response.status === 401) throw { unauthorized: true };
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "Error cargando datos");
+  return data;
+};
 
 export async function getCustomer(token, id) {
   return apiFetch(`/api/customers/${id}`, { token });
 }
 
 export async function createCustomer(token, payload) {
-  const customer = await apiFetch("/api/customers", {
+  return apiFetch("/api/customers", {
     method: "POST",
     token,
     body: payload,
   });
-  clearCache();
-  return customer;
 }
 
 export async function updateCustomer(token, id, payload) {
-  const customer = await apiFetch(`/api/customers/${id}`, {
+  return apiFetch(`/api/customers/${id}`, {
     method: "PUT",
     token,
     body: payload,
   });
-  clearCache();
-  return customer;
 }
 
 export async function deleteCustomer(token, id) {
-  await apiFetch(`/api/customers/${id}`, {
+  return apiFetch(`/api/customers/${id}`, {
     method: "DELETE",
     token,
   });
-  clearCache();
-  return true;
 }
 
 export async function importCustomers(token, file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const data = await apiFetch("/api/customers/import", {
+  return apiFetch("/api/customers/import", {
     method: "POST",
     token,
     body: formData,
     isFormData: true,
   });
-
-  clearCache();
-  return data;
 }
+
+export async function assignCustomer(token, id, userId) {
+  return apiFetch(`/api/customers/${id}/assign`, {
+    method: "PATCH",
+    token,
+    body: { user_id: userId },
+  });
+}
+
+// --- USUARIOS ---
 
 export async function getUsers(token) {
   return apiFetch("/api/users", { token });
 }
 
-export async function assignCustomer(token, id, userId) {
-  const data = await apiFetch(`/api/customers/${id}/assign`, {
-    method: "PATCH",
-    token,
-    body: { user_id: userId },
-  });
-  clearCache();
-  return data;
-}
-
-export function logoutAndRedirect(path = "/") {
-  clearAuthStorage();
-  window.location.href = path;
-}
-
-export function invalidateCustomersCache() {
-  clearCache();
-}
+// --- NOTAS Y AGENDA ---
 
 export async function getCustomerNotes(token, customerId) {
   return apiFetch(`/api/customers/${customerId}/notes`, { token });
@@ -214,12 +201,11 @@ export async function updateAgenda(token, id, payload) {
 export async function deleteAgenda(token, id) {
   return apiFetch(`/api/agenda/${id}`, { method: "DELETE", token });
 }
-// Agrega esto en src/api.js
+
+// --- DASHBOARD ---
 
 export const getDashboardActivity = async (token) => {
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api"; // O usa tu variable existente
-  
-  const response = await fetch(`${API_URL}/dashboard/activity`, {
+  const response = await fetch(`${API_URL}/api/dashboard/activity`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await response.json();
@@ -228,10 +214,7 @@ export const getDashboardActivity = async (token) => {
 };
 
 export const getDashboardStats = async (token) => {
-  // Asegúrate de usar tu variable de entorno correcta, aquí pongo el ejemplo directo
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api"; 
-  
-  const response = await fetch(`${API_URL}/dashboard/stats`, {
+  const response = await fetch(`${API_URL}/api/dashboard/stats`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await response.json();
@@ -242,7 +225,6 @@ export const getDashboardStats = async (token) => {
 // --- UNIDADES / MAQUINARIA ---
 
 export const getCustomerUnits = async (token, customerId) => {
-  // AGREGADO: /api antes de /customers
   const response = await fetch(`${API_URL}/api/customers/${customerId}/units`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -250,7 +232,6 @@ export const getCustomerUnits = async (token, customerId) => {
 };
 
 export const createCustomerUnit = async (token, customerId, data) => {
-  // AGREGADO: /api antes de /customers
   const response = await fetch(`${API_URL}/api/customers/${customerId}/units`, {
     method: "POST",
     headers: { 
@@ -261,15 +242,6 @@ export const createCustomerUnit = async (token, customerId, data) => {
   });
   if (!response.ok) throw new Error("Error guardando unidad");
   return await response.json();
-};
-
-export const deleteCustomerUnit = async (token, customerId, unitId) => {
-  // AGREGADO: /api antes de /customers
-  const response = await fetch(`${API_URL}/api/customers/${customerId}/units/${unitId}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) throw new Error("Error eliminando unidad");
 };
 
 export const updateCustomerUnit = async (token, customerId, unitId, data) => {
@@ -284,3 +256,12 @@ export const updateCustomerUnit = async (token, customerId, unitId, data) => {
   if (!response.ok) throw new Error("Error actualizando unidad");
   return await response.json();
 };
+
+export const deleteCustomerUnit = async (token, customerId, unitId) => {
+  const response = await fetch(`${API_URL}/api/customers/${customerId}/units/${unitId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Error eliminando unidad");
+};
+

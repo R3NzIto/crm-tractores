@@ -6,9 +6,11 @@ import ResetPage from "./pages/ResetPage";
 import Dashboard from "./pages/Dashboard";
 import CustomersPage from "./pages/CustomersPage";
 import AgendaPage from "./pages/AgendaPage";
-import Layout from "./components/Layout"; // <--- Importamos el nuevo Layout
+import Layout from "./components/Layout"; 
 import { logoutAndRedirect } from "./api";
 import "./App.css";
+import PointsOfSalePage from "./pages/PointsOfSalePage";
+
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
@@ -33,6 +35,7 @@ function App() {
            <Route path="/dashboard" element={<Dashboard />} />
            <Route path="/customers" element={<CustomersPage />} />
            <Route path="/agenda" element={<AgendaPage />} />
+           <Route path="/pos" element={<PointsOfSalePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

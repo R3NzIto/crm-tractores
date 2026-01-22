@@ -7,6 +7,9 @@ const Layout = () => {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   
+  // 1. Verificamos si es JEFE o ADMIN
+  const isJefe = user?.role === 'jefe' || user?.role === 'admin'; 
+
   // Estado para controlar si el menú está abierto o cerrado en el celular
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -40,21 +43,35 @@ const Layout = () => {
         <nav className="sidebar-nav">
           <ul>
             <li>
-              {/* Al hacer clic, llamamos a closeSidebar para que se cierre el menú */}
               <Link to="/dashboard" className={`nav-link ${isActive("/dashboard")}`} onClick={closeSidebar}>
                 <span className="icon">📊</span> Dashboard
               </Link>
             </li>
+            
             <li>
               <Link to="/customers" className={`nav-link ${isActive("/customers")}`} onClick={closeSidebar}>
                 <span className="icon">👥</span> Clientes
               </Link>
             </li>
+
+            
+            {isJefe && (
+              <li>
+                <Link to="/pos" className={`nav-link ${isActive("/pos")}`} onClick={closeSidebar}>
+                  <span className="icon">🏭</span> Puntos de Venta
+                </Link>
+              </li>
+            )}
+            
+
             <li>
               <Link to="/agenda" className={`nav-link ${isActive("/agenda")}`} onClick={closeSidebar}>
                 <span className="icon">📅</span> Agenda
               </Link>
             </li>
+
+            {/* Opcional: Link a Usuarios también solo para el jefe */}
+
           </ul>
         </nav>
 
