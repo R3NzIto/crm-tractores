@@ -4,11 +4,14 @@ const pool = require('../db');
 const { authMiddleware } = require('../middleware/authMiddleware');
 
 // GET: Obtener unidades
-router.get('/:customerId/units', authMiddleware, async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
+  // OJO: Ajustamos la ruta para que coincida con tu estructura
+  // Si en server.js usas app.use('/api/customers/:customerId/units', ...), entonces aquí es '/'
   const { customerId } = req.params;
   try {
+    // ⚠️ IMPORTANTE: Quitamos "ORDER BY sale_date" porque esa columna ya no existe
     const result = await pool.query(
-      `SELECT * FROM sold_units WHERE customer_id = $1 ORDER BY sale_date DESC`,
+      `SELECT * FROM sold_units WHERE customer_id = $1 ORDER BY id DESC`,
       [customerId]
     );
     res.json(result.rows);
@@ -18,39 +21,51 @@ router.get('/:customerId/units', authMiddleware, async (req, res) => {
   }
 });
 
-// POST: Agregar unidad
-router.post('/:customerId/units', authMiddleware, async (req, res) => {
+// POST: Agregar unidad (VERSIÓN CORREGIDA)
+router.post('/', authMiddleware, async (req, res) => {
   const { customerId } = req.params;
-  // 👇 Agregamos intervention_date
-  const { model, year, hp, accessories, sale_date, status, interventions, intervention_date } = req.body;
+  // 👇 Usamos las variables nuevas
+  const { brand, model, year, hp, status, interventions, intervention_date, origin, hours, comments } = req.body;
 
   try {
     const result = await pool.query(
-      `INSERT INTO sold_units (customer_id, model, year, hp, accessories, sale_date, status, interventions, intervention_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO sold_units 
+       (customer_id, brand, model, year, hp, status, interventions, intervention_date, origin, hours, comments)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [customerId, model, year, hp, accessories, sale_date, status || 'SOLD', interventions || '', intervention_date || null]
+      [
+        customerId, 
+        brand, 
+        model, 
+        year, 
+        hp, 
+        status || 'EN_USO', 
+        interventions || '', 
+        intervention_date || null,
+        origin || 'TERCEROS',
+        hours || 0,       
+        comments || ''    
+      ]
     );
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
+    console.error('Error en POST units:', err); // Log más claro
     res.status(500).json({ message: 'Error al guardar unidad' });
   }
 });
 
 // PUT: Editar unidad
-router.put('/:customerId/units/:unitId', authMiddleware, async (req, res) => {
+router.put('/:unitId', authMiddleware, async (req, res) => {
   const { unitId } = req.params;
-  // 👇 Agregamos intervention_date
-  const { model, year, hp, accessories, sale_date, status, interventions, intervention_date } = req.body;
+  const { brand, model, year, hp, status, interventions, intervention_date, origin, hours, comments } = req.body;
 
   try {
     const result = await pool.query(
       `UPDATE sold_units 
-       SET model = $1, year = $2, hp = $3, accessories = $4, sale_date = $5, status = $6, interventions = $7, intervention_date = $8
-       WHERE id = $9
+       SET brand = $1, model = $2, year = $3, hp = $4, status = $5, interventions = $6, intervention_date = $7, origin = $8, hours = $9, comments = $10
+       WHERE id = $11
        RETURNING *`,
-      [model, year, hp, accessories, sale_date, status || 'SOLD', interventions || '', intervention_date || null, unitId]
+      [brand, model, year, hp, status || 'EN_USO', interventions || '', intervention_date || null, origin || 'TERCEROS', hours, comments, unitId]
     );
 
     if (result.rowCount === 0) return res.status(404).json({ message: 'Unidad no encontrada' });
@@ -62,7 +77,7 @@ router.put('/:customerId/units/:unitId', authMiddleware, async (req, res) => {
 });
 
 // DELETE: Borrar unidad
-router.delete('/:customerId/units/:unitId', authMiddleware, async (req, res) => {
+router.delete('/:unitId', authMiddleware, async (req, res) => {
   const { unitId } = req.params;
   try {
     await pool.query('DELETE FROM sold_units WHERE id = $1', [unitId]);
