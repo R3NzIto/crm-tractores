@@ -19,7 +19,6 @@ const modelsRoutes = require('./routes/modelsRoutes');
 const app = express();
 app.set('trust proxy', 1); 
 
-
 // --- CONFIGURACIÓN DE CORS ---
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const allowedOrigins = [
@@ -64,25 +63,33 @@ const apiLimiter = rateLimit({
     message: { message: 'Demasiadas solicitudes, intenta más tarde' },
 });
 
-// --- DEFINICIÓN DE RUTAS ---
+// --- DEFINICIÓN DE RUTAS (CORREGIDO) ---
 app.get('/', (req, res) => {
     res.send('API CRM Tractores OK');
 });
-app.use('/api/customers', customerUnitsRoutes);
+
 app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api', apiLimiter);
-app.use('/api/customers', customerRoutes);
+
+
+app.use('/api/customers', customerRoutes); 
+
+// 👇 2. RUTAS ESPECÍFICAS (Unidades, Notas, Asignaciones)
+// Nota: Usamos :customerId/units para que coincida con la lógica de mergeParams
+app.use('/api/customers/:customerId/units', customerUnitsRoutes); 
 app.use('/api/customers', customerAssignRoutes);
 app.use('/api/customers', customerNotesRoutes);
+
+// Resto de rutas
 app.use('/api/agenda', agendaRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dashboard', dashboardRoutes); 
 app.use('/api/models', modelsRoutes);
 
+// Middleware global (opcional pero recomendado)
+app.use('/api', apiLimiter);
 
 
 // --- CONFIGURACIÓN DEL SERVIDOR ---
-
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
     console.log(`Servidor escuchando en http://localhost:${PORT}`);
