@@ -63,11 +63,11 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 
     // 3. Filtro por PERMISOS (Si no es jefe, solo ve lo suyo)
-    if (!canManageAll(req.user.role)) {
-      sql += ` AND (c.created_by = $${paramIndex} OR c.assigned_to = $${paramIndex})`;
-      params.push(req.user.id);
-      paramIndex++;
-    }
+   // if (!canManageAll(req.user.role)) {
+     // sql += ` AND (c.created_by = $${paramIndex} OR c.assigned_to = $${paramIndex})`;
+      //params.push(req.user.id);
+      //paramIndex++;
+   // }
 
     sql += ` ORDER BY c.id DESC`;
 
