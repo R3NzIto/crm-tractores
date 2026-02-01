@@ -24,6 +24,9 @@ import {
 import icon from "leaflet/dist/images/marker-icon.png";
 import iconShadow from "leaflet/dist/images/marker-shadow.png";
 
+// URL DEL BACKEND (Ajustar si es necesario)
+const API_URL = import.meta.env.VITE_API_URL || 'https://wolfhard-backend.onrender.com';
+
 let DefaultIcon = L.icon({
   iconUrl: icon,
   shadowUrl: iconShadow,
@@ -34,7 +37,7 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 const MANAGER_ROLES = ["admin", "manager", "jefe"];
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString() : "Sin fecha");
-const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-");
+// const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-"); // Ya no usamos fecha de venta visualmente
 
 function CustomersPage() {
   const [customers, setCustomers] = useState([]);
@@ -47,7 +50,7 @@ function CustomersPage() {
   
   const [openMenuId, setOpenMenuId] = useState(null);
 
-  // Estados Acciones
+  // --- ESTADOS DE NOTAS Y ACCIONES ---
   const [notesCustomer, setNotesCustomer] = useState(null);
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(false);
@@ -57,20 +60,36 @@ function CustomersPage() {
   const [noteError, setNoteError] = useState("");
   const [actionType, setActionType] = useState('CALL'); 
 
-  // Estados Unidades
+  // --- ESTADOS PARA UNIDADES (TRACTORES) ---
   const [unitsCustomer, setUnitsCustomer] = useState(null);
   const [units, setUnits] = useState([]);
-  const [unitForm, setUnitForm] = useState({ model: "", year: "", hp: "", accessories: "", sale_date: "", interventions: "", intervention_date: "" });
   
-  // 👇 NUEVOS ESTADOS PARA AGREGAR AL HISTORIAL
-  const [newIntervention, setNewIntervention] = useState({ date: "", text: "" });
+  // Listas maestras para los Selects
+  const [allTractorModels, setAllTractorModels] = useState([]); 
+  const [tractorBrands, setTractorBrands] = useState([]); 
+  const [filteredModels, setFilteredModels] = useState([]); 
 
+  // 👇 ESTADO ACTUALIZADO (Horas y Comentarios, sin fecha/accesorios)
+  const [unitForm, setUnitForm] = useState({ 
+    brand: "", 
+    model: "", 
+    year: "", 
+    hp: "", 
+    hours: "",      // Nuevo: Horas de uso
+    comments: "",   // Nuevo: Estado general
+    interventions: "", 
+    intervention_date: "",
+    origin: "TERCEROS" 
+  });
+  
+  const [newIntervention, setNewIntervention] = useState({ date: "", text: "" });
   const [unitsLoading, setUnitsLoading] = useState(false);
   const [editingUnitId, setEditingUnitId] = useState(null);
 
   const [search, setSearch] = useState("");
   const [machineSearch, setMachineSearch] = useState(""); 
   const [filters, setFilters] = useState({ localidad: "", sector: "", assigned: "" });
+  
   const token = localStorage.getItem("token");
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
@@ -86,6 +105,26 @@ function CustomersPage() {
       return;
     }
     setError(err?.message || "No pudimos completar la operacion");
+  };
+
+  // 1️⃣ CARGAR LISTA MAESTRA DE TRACTORES AL INICIO
+  useEffect(() => {
+    fetch(`${API_URL}/api/models`)
+      .then(res => res.json())
+      .then(data => {
+        setAllTractorModels(data);
+        const uniqueBrands = [...new Set(data.map(item => item.brand))];
+        setTractorBrands(uniqueBrands);
+      })
+      .catch(err => console.error("Error cargando modelos:", err));
+  }, []);
+
+  // 2️⃣ MANEJAR CAMBIO DE MARCA (Cascada)
+  const handleBrandChange = (e) => {
+    const selectedBrand = e.target.value;
+    const models = allTractorModels.filter(m => m.brand === selectedBrand);
+    setFilteredModels(models);
+    setUnitForm({ ...unitForm, brand: selectedBrand, model: "" });
   };
 
   const loadCustomers = useCallback(async ( machineFilter = "") => {
@@ -110,9 +149,7 @@ function CustomersPage() {
     try {
       const data = await getUsers(token);
       setUsers(Array.isArray(data) ? data : []);
-    } catch (error) { 
-      console.error("Error users", error);
-    }
+    } catch (error) { console.error("Error users", error); }
   }, [token, isManager]);
 
   const loadNotes = async (customer) => {
@@ -140,8 +177,10 @@ function CustomersPage() {
     setUnitsCustomer(customer);
     setUnitsLoading(true);
     setEditingUnitId(null);
-    setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "", interventions: "", intervention_date: "" });
-    setNewIntervention({ date: "", text: "" }); // Limpiar campos nuevos
+    // Resetear formulario con campos nuevos
+    setUnitForm({ brand: "", model: "", year: "", hp: "", hours: "", comments: "", interventions: "", intervention_date: "", origin: "TERCEROS" });
+    setNewIntervention({ date: "", text: "" });
+    setFilteredModels([]); 
     setOpenMenuId(null); 
     try {
       const data = await getCustomerUnits(token, customer.id);
@@ -155,55 +194,55 @@ function CustomersPage() {
 
   const startEditUnit = (unit) => {
     setEditingUnitId(unit.id);
+    
+    // Filtramos los modelos para que el select funcione al editar
+    const modelsForThisBrand = allTractorModels.filter(m => m.brand === unit.brand);
+    setFilteredModels(modelsForThisBrand);
+
     setUnitForm({
+      brand: unit.brand || "",
       model: unit.model || "",
       year: unit.year || "",
       hp: unit.hp || "",
-      accessories: unit.accessories || "",
-      sale_date: unit.sale_date ? unit.sale_date.split('T')[0] : "",
+      hours: unit.hours || "",       // Cargar horas
+      comments: unit.comments || "", // Cargar comentarios
       interventions: unit.interventions || "",
-      intervention_date: unit.intervention_date ? unit.intervention_date.split('T')[0] : "" 
+      intervention_date: unit.intervention_date ? unit.intervention_date.split('T')[0] : "",
+      origin: unit.origin || "TERCEROS"
     });
-    // Seteamos la fecha de hoy por defecto para una nueva entrada
     setNewIntervention({ date: new Date().toISOString().split('T')[0], text: "" });
   };
 
   const cancelEditUnit = () => {
     setEditingUnitId(null);
-    setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "", interventions: "", intervention_date: "" });
+    setUnitForm({ brand: "", model: "", year: "", hp: "", hours: "", comments: "", interventions: "", intervention_date: "", origin: "TERCEROS" });
     setNewIntervention({ date: "", text: "" });
+    setFilteredModels([]);
   };
 
-  // 👇 FUNCIÓN MAGICA: Agrega la línea al historial sin borrar lo anterior
   const addToHistory = () => {
     if (!newIntervention.date || !newIntervention.text.trim()) {
       alert("Completa fecha y detalle para agregar al historial.");
       return;
     }
-
-    // Formato: DD/MM/YYYY: Detalle
-    const dateObj = new Date(newIntervention.date + "T12:00:00"); // Truco para evitar problemas de zona horaria
+    const dateObj = new Date(newIntervention.date + "T12:00:00");
     const dateStr = dateObj.toLocaleDateString();
     const newLine = `${dateStr}: ${newIntervention.text}`;
-
-    // Sumamos al texto existente (si ya había algo, agregamos salto de línea)
     const currentHistory = unitForm.interventions || "";
     const updatedHistory = currentHistory ? `${currentHistory}\n${newLine}` : newLine;
 
     setUnitForm({ 
       ...unitForm, 
       interventions: updatedHistory,
-      intervention_date: newIntervention.date // Actualizamos también la "última fecha"
+      intervention_date: newIntervention.date 
     });
-
-    // Limpiamos el campo de escritura rápida
     setNewIntervention({ ...newIntervention, text: "" });
   };
 
   const submitUnit = async (e) => {
     e.preventDefault();
     if (!unitsCustomer) return;
-    if (!unitForm.model) return alert("El modelo es obligatorio");
+    if (!unitForm.brand || !unitForm.model) return alert("Marca y Modelo son obligatorios");
     
     setUnitsLoading(true); 
     try {
@@ -212,9 +251,11 @@ function CustomersPage() {
       } else {
         await createCustomerUnit(token, unitsCustomer.id, unitForm);
       }
-      setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "", interventions: "", intervention_date: "" });
+      // Limpiar formulario completo
+      setUnitForm({ brand: "", model: "", year: "", hp: "", hours: "", comments: "", interventions: "", intervention_date: "", origin: "TERCEROS" });
       setNewIntervention({ date: "", text: "" });
       setEditingUnitId(null);
+      setFilteredModels([]);
       await loadUnits(unitsCustomer);
     } catch (err) {
       console.error(err);
@@ -320,12 +361,8 @@ function CustomersPage() {
   const startEdit = (c) => { 
     setEditingId(c.id); 
     setForm({ 
-      name: c.name||"", 
-      email: c.email||"", 
-      phone: c.phone||"", 
-      company: c.company||"", 
-      localidad: c.localidad||"", 
-      sector: c.sector||"", 
+      name: c.name||"", email: c.email||"", phone: c.phone||"", 
+      company: c.company||"", localidad: c.localidad||"", sector: c.sector||"", 
       assigned_to: c.assigned_to||"" 
     }); 
     setOpenMenuId(null); 
@@ -336,28 +373,18 @@ function CustomersPage() {
     setForm({ name: "", email: "", phone: "", company: "", localidad: "", sector: "", assigned_to: "" }); 
   };
 
-  // Buscamos esta función y la reemplazamos:
   const handleAssign = async (cId, uId) => { 
     try { 
-      // 1. Mandamos el cambio al servidor (para que guarde y envíe mail)
       await assignCustomer(token, cId, uId); 
-      
-      // 2. ACTUALIZACIÓN INSTANTÁNEA (OPTIMISTA)
-      // En vez de recargar todo, actualizamos solo este cliente en la memoria
       setCustomers(prevCustomers => prevCustomers.map(customer => {
         if (customer.id === cId) {
-          // Si es el cliente que tocamos, le cambiamos el assigned_to
           return { ...customer, assigned_to: uId ? parseInt(uId) : null };
         }
-        return customer; // Los demás quedan igual
+        return customer; 
       }));
-
-      // 3. Cerramos el menú
       setOpenMenuId(null); 
-
     } catch (err) { 
       handleApiError(err); 
-      // Si falla, recargamos la lista para asegurarnos de ver la verdad
       loadCustomers(true);
     } 
   };
@@ -375,11 +402,8 @@ function CustomersPage() {
   };
 
   const toggleMenu = (id) => {
-    if (openMenuId === id) {
-      setOpenMenuId(null);
-    } else {
-      setOpenMenuId(id);
-    }
+    if (openMenuId === id) setOpenMenuId(null);
+    else setOpenMenuId(id);
   };
 
   const customerCounts = useMemo(() => {
@@ -414,6 +438,7 @@ function CustomersPage() {
         <span className="tag">{customerCounts.total} Clientes</span>
       </div>
 
+      {/* --- FORMULARIO DE CLIENTES (ARRIBA) --- */}
       <div className="card" style={{ marginBottom: 14 }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ margin: "0 0 8px" }}>{editingId ? "Editar Cliente" : "Nuevo Cliente"}</h3>
         {!canSubmit && <p className="muted" style={{marginTop:0}}>Tu rol no permite crear/editar clientes.</p>}
@@ -434,6 +459,7 @@ function CustomersPage() {
         {error && <p className="error">{error}</p>}
       </div>
 
+      {/* --- LISTADO DE CLIENTES --- */}
       <div className="card" onClick={(e) => e.stopPropagation()}>
         <div className="page-header" style={{ marginBottom: 6 }}>
            <h3 style={{margin:0}}>Listado</h3>
@@ -464,13 +490,13 @@ function CustomersPage() {
                   <td>{c.id}</td><td>{c.name}</td><td className="muted">{c.phone || "-"}</td><td>{c.localidad||"-"}</td><td>{c.sector||"-"}</td>
                   
                   <td style={{position: 'relative'}}>
-                     <button className="btn secondary" onClick={(e) => { e.stopPropagation(); toggleMenu(c.id); }} style={{width: '100%', display: 'flex', justifyContent: 'center', gap: '5px'}}>⚙️ ▼</button>
-                     {openMenuId === c.id && (
-                       <div style={{position: 'absolute', right: 0, top: '100%', background: '#222', border: '1px solid #444', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.5)', zIndex: 100, minWidth: '160px', overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
-                         <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => startEdit(c)}>✏️ Editar Datos</button>
-                         <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => loadUnits(c)}>🚜 Ver Unidades</button>
-                         <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => loadNotes(c)}>📝 Notas/Visitas</button>
-                         {isManager && (
+                      <button className="btn secondary" onClick={(e) => { e.stopPropagation(); toggleMenu(c.id); }} style={{width: '100%', display: 'flex', justifyContent: 'center', gap: '5px'}}>⚙️ ▼</button>
+                      {openMenuId === c.id && (
+                        <div style={{position: 'absolute', right: 0, top: '100%', background: '#222', border: '1px solid #444', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.5)', zIndex: 100, minWidth: '160px', overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
+                          <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => startEdit(c)}>✏️ Editar Datos</button>
+                          <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => loadUnits(c)}>🚜 Ver Unidades</button>
+                          <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => loadNotes(c)}>📝 Notas/Visitas</button>
+                          {isManager && (
                             <div style={{padding: '5px 10px', borderTop: '1px solid #333'}}>
                                 <label style={{fontSize: '0.7rem', color:'#888'}}>Asignar a:</label>
                                 <select value={c.assigned_to || ""} onChange={(e) => handleAssign(c.id, e.target.value)} style={{width: '100%', marginTop:2, fontSize:'0.8rem', padding:'2px'}} onClick={(e) => e.stopPropagation()}>
@@ -478,10 +504,10 @@ function CustomersPage() {
                                     {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                 </select>
                             </div>
-                         )}
-                         <button className="btn danger" style={{textAlign:'left', borderRadius:0, padding:'10px', borderTop:'1px solid #333'}} onClick={() => handleDelete(c.id)}>🗑️ Eliminar</button>
-                       </div>
-                     )}
+                          )}
+                          <button className="btn danger" style={{textAlign:'left', borderRadius:0, padding:'10px', borderTop:'1px solid #333'}} onClick={() => handleDelete(c.id)}>🗑️ Eliminar</button>
+                        </div>
+                      )}
                   </td>
                 </tr>
               ))}
@@ -489,7 +515,7 @@ function CustomersPage() {
           </table>
         </div>
 
-        {/* --- CENTRO DE UNIDADES --- */}
+        {/* --- CENTRO DE UNIDADES (PARQUE DE MAQUINARIA) --- */}
         {unitsCustomer && (
            <div className="card" style={{ marginTop: 20, border: '1px solid #f0b43a' }} onClick={(e) => e.stopPropagation()}>
              <div className="card-header" style={{ marginBottom: 10 }}>
@@ -498,49 +524,61 @@ function CustomersPage() {
             </div>
 
             <form onSubmit={submitUnit} className="form-grid compact" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))'}}>
-              <input type="text" placeholder="Modelo" value={unitForm.model} onChange={e => setUnitForm({...unitForm, model: e.target.value})} required />
-              <input type="number" placeholder="Año" value={unitForm.year} onChange={e => setUnitForm({...unitForm, year: e.target.value})} />
-              <input type="number" placeholder="HP" value={unitForm.hp} onChange={e => setUnitForm({...unitForm, hp: e.target.value})} />
-              <input type="date" value={unitForm.sale_date} onChange={e => setUnitForm({...unitForm, sale_date: e.target.value})} />
-              <input type="text" placeholder="Accesorios" value={unitForm.accessories} onChange={e => setUnitForm({...unitForm, accessories: e.target.value})} />
               
-              {/* 👇 SECCIÓN DE INTERVENCIONES */}
-              <div style={{gridColumn: '1 / -1', background:'rgba(255,255,255,0.03)', padding:10, borderRadius:6, marginTop:5}}>
-                 <label style={{display:'block', fontSize:'0.9rem', color:'#f0b43a', marginBottom:'8px'}}>🔧 Hoja de Vida / Service:</label>
-                 
-                 {/* 1. AGREGAR NUEVA LÍNEA */}
-                 <div style={{display:'flex', gap:10, marginBottom:10}}>
-                   <input 
-                     type="date" 
-                     value={newIntervention.date} 
-                     onChange={e => setNewIntervention({...newIntervention, date: e.target.value})}
-                     style={{width:'150px'}}
-                   />
-                   <input 
-                     type="text" 
-                     placeholder="Detalle (ej: Cambio de aceite)" 
-                     value={newIntervention.text} 
-                     onChange={e => setNewIntervention({...newIntervention, text: e.target.value})}
-                     style={{flex:1}}
-                   />
-                   <button 
-                     type="button" 
-                     className="btn secondary" 
-                     onClick={addToHistory}
-                     style={{whiteSpace:'nowrap'}}
-                   >
-                     Agregar (+)
-                   </button>
-                 </div>
-
-                 {/* 2. HISTORIAL EDITABLE */}
-                 <textarea 
-                   placeholder="El historial aparecerá aquí..." 
-                   value={unitForm.interventions} 
-                   onChange={e => setUnitForm({...unitForm, interventions: e.target.value})}
-                   style={{width:'100%', minHeight: '80px', resize: 'vertical', fontFamily:'monospace', fontSize:'0.85rem'}}
-                 />
+              {/* SELECTOR DE ORIGEN */}
+              <div style={{gridColumn: '1 / -1', display: 'flex', gap: '20px', marginBottom: '5px', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '5px'}}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize:'0.9rem'}}>
+                    <input type="radio" name="origin" value="TERCEROS" checked={unitForm.origin === 'TERCEROS'} onChange={e => setUnitForm({...unitForm, origin: e.target.value})} />
+                    <span>🏢 Unidad de Terceros</span>
+                </label>
+                <label style={{display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize:'0.9rem'}}>
+                    <input type="radio" name="origin" value="WOLF_HARD" checked={unitForm.origin === 'WOLF_HARD'} onChange={e => setUnitForm({...unitForm, origin: e.target.value})} />
+                    <span style={{color: '#f0b43a', fontWeight: 'bold'}}>🐺 Unidad Wolf Hard</span>
+                </label>
               </div>
+
+              {/* SELECTOR DE MARCA */}
+              <select value={unitForm.brand} onChange={handleBrandChange} required style={{borderColor: '#f0b43a'}}>
+                <option value="">-- Marca --</option>
+                {tractorBrands.map((b, i) => <option key={i} value={b}>{b}</option>)}
+              </select>
+
+              {/* SELECTOR DE MODELO */}
+              <select value={unitForm.model} onChange={e => setUnitForm({...unitForm, model: e.target.value})} required disabled={!unitForm.brand}>
+                <option value="">-- Modelo --</option>
+                {filteredModels.map((m) => <option key={m.id} value={m.model}>{m.model}</option>)}
+              </select>
+
+              <input type="number" placeholder="Año" value={unitForm.year} onChange={e => setUnitForm({...unitForm, year: e.target.value})} />
+              <input type="number" placeholder="HP (Potencia)" value={unitForm.hp} onChange={e => setUnitForm({...unitForm, hp: e.target.value})} />
+              
+              {/* 👇 NUEVO CAMPO: HORAS */}
+              <input type="number" placeholder="Horas de Uso ⏱️" value={unitForm.hours} onChange={e => setUnitForm({...unitForm, hours: e.target.value})} style={{borderColor: '#f0b43a'}} />
+
+              {/* 👇 NUEVO CAMPO: COMENTARIOS */}
+              <textarea 
+                placeholder="Comentarios sobre el estado (ej: Cubiertas al 50%, motor reparado...)" 
+                value={unitForm.comments} 
+                onChange={e => setUnitForm({...unitForm, comments: e.target.value})} 
+                style={{gridColumn: '1 / -1', minHeight: '60px', resize: 'vertical'}}
+              />
+              
+              {/* 👇 SECCIÓN DE SERVICE: SOLO APARECE SI ES WOLF HARD */}
+              {unitForm.origin === 'WOLF_HARD' && (
+                <div style={{gridColumn: '1 / -1', background:'rgba(240, 180, 58, 0.1)', border: '1px dashed #f0b43a', padding:10, borderRadius:6, marginTop:5}}>
+                    <label style={{display:'block', fontSize:'0.9rem', color:'#f0b43a', marginBottom:'8px'}}>
+                      🛠️ Service / Mantenimiento Oficial
+                    </label>
+                    
+                    <div style={{display:'flex', gap:10, marginBottom:10}}>
+                      <input type="date" value={newIntervention.date} onChange={e => setNewIntervention({...newIntervention, date: e.target.value})} style={{width:'150px'}} />
+                      <input type="text" placeholder="Detalle (ej: Service 500hs)" value={newIntervention.text} onChange={e => setNewIntervention({...newIntervention, text: e.target.value})} style={{flex:1}} />
+                      <button type="button" className="btn secondary" onClick={addToHistory} style={{whiteSpace:'nowrap'}}>Agregar (+)</button>
+                    </div>
+
+                    <textarea placeholder="Historial de servicios..." value={unitForm.interventions} onChange={e => setUnitForm({...unitForm, interventions: e.target.value})} style={{width:'100%', minHeight: '80px', fontFamily:'monospace', fontSize:'0.85rem'}} />
+                </div>
+              )}
 
               <div className="toolbar" style={{gridColumn: '1 / -1'}}>
                  <button className="btn" style={{background: '#f0b43a', color:'#000'}} type="submit" disabled={unitsLoading}>
@@ -551,15 +589,25 @@ function CustomersPage() {
             </form>
 
             <div style={{marginTop: 20}}>
-               {units.length === 0 ? <p className="muted">Sin unidades.</p> : (
+               {units.length === 0 ? <p className="muted">Sin unidades registradas.</p> : (
                  <div style={{display:'grid', gap:'10px'}}>
                     {units.map(unit => (
-                      <div key={unit.id} style={{background: 'rgba(255,255,255,0.05)', padding: '10px 15px', borderRadius:'6px', display:'flex', flexDirection:'column', gap:'5px'}}>
+                      <div key={unit.id} style={{
+                        background: unit.origin === 'WOLF_HARD' ? 'rgba(240, 180, 58, 0.15)' : 'rgba(255,255,255,0.05)',
+                        borderLeft: unit.origin === 'WOLF_HARD' ? '4px solid #f0b43a' : '4px solid #666',
+                        padding: '10px 15px', borderRadius:'6px', display:'flex', flexDirection:'column', gap:'5px'
+                      }}>
                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                              <div>
-                                <strong style={{fontSize:'1.1rem', color:'#f0b43a'}}>{unit.model}</strong>
+                                <div style={{fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px', color: unit.origin === 'WOLF_HARD' ? '#f0b43a' : '#888'}}>
+                                   {unit.origin === 'WOLF_HARD' ? '⭐ Wolf Hard' : '🏢 Terceros'}
+                                </div>
+                                <strong style={{fontSize:'1.1rem', color:'white'}}>
+                                    {unit.brand} <span style={{color: '#f0b43a'}}>{unit.model}</span>
+                                </strong>
                                 <span className="muted small" style={{marginLeft: 10}}>
-                                   {unit.year ? `Año ${unit.year}` : ''} {unit.hp ? `• ${unit.hp} HP` : ''} • {formatDate(unit.sale_date)}
+                                   {unit.year ? `Año ${unit.year}` : ''} {unit.hp ? `• ${unit.hp} HP` : ''} 
+                                   {unit.hours ? ` • ⏱️ ${unit.hours} hs` : ''}
                                 </span>
                              </div>
                              <div style={{display:'flex', gap:5}}>
@@ -568,13 +616,13 @@ function CustomersPage() {
                              </div>
                          </div>
                          
-                         {unit.accessories && <div style={{fontSize:'0.9rem', color:'#bbb'}}>🔧 {unit.accessories}</div>}
+                         {unit.comments && <div style={{fontSize:'0.9rem', color:'#bbb', fontStyle:'italic'}}>"{unit.comments}"</div>}
                          
-                         {/* MOSTRAMOS EL HISTORIAL FORMATEADO */}
-                         {unit.interventions && (
-                           <div style={{marginTop: 5, padding: '8px', background: 'rgba(240, 180, 58, 0.1)', borderRadius: '4px', borderLeft: '3px solid #f0b43a'}}>
-                             <strong style={{display:'block', fontSize:'0.8rem', color:'#f0b43a', marginBottom:2}}>📝 HISTORIAL DE SERVICIOS:</strong>
-                             <div style={{whiteSpace: 'pre-wrap', fontSize:'0.9rem', fontFamily:'monospace'}}>{unit.interventions}</div>
+                         {/* HISTORIAL: SOLO SI ES WOLF HARD */}
+                         {unit.origin === 'WOLF_HARD' && unit.interventions && (
+                           <div style={{marginTop: 5, padding: '8px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
+                             <strong style={{display:'block', fontSize:'0.75rem', color:'#f0b43a', marginBottom:2}}>HISTORIAL OFICIAL:</strong>
+                             <div style={{whiteSpace: 'pre-wrap', fontSize:'0.85rem', fontFamily:'monospace'}}>{unit.interventions}</div>
                            </div>
                          )}
                       </div>
@@ -585,7 +633,7 @@ function CustomersPage() {
            </div>
         )}
 
-        {/* ... (Resto de Notas y Visitas se mantiene igual) ... */}
+        {/* --- PANEL DE NOTAS Y VISITAS (SIN CAMBIOS) --- */}
         {notesCustomer && (
           <div className="card" style={{ marginTop: 20, border: '1px solid var(--primary)' }} onClick={(e) => e.stopPropagation()}>
             <div className="card-header">
