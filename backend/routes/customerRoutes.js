@@ -1,4 +1,3 @@
-// backend/routes/customerRoutes.js
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
@@ -13,7 +12,7 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
-// --- 1. ACTUALIZAMOS EL ESQUEMA DE VALIDACIÓN (JOI) ---
+// --- 1. ESQUEMA DE VALIDACIÓN (JOI) ---
 const customerSchema = Joi.object({
   name: Joi.string().min(2).max(150).required(),
   company: Joi.string().max(150).allow('', null),
@@ -22,43 +21,48 @@ const customerSchema = Joi.object({
   localidad: Joi.string().max(100).allow('', null),
   sector: Joi.string().max(100).allow('', null),
   assigned_to: Joi.number().integer().allow(null),
-  // 👇 AGREGAMOS ESTO PARA QUE ACEPTE EL TIPO
   type: Joi.string().valid('CLIENT', 'POS').allow('', null) 
 });
 
-// GET: Listar clientes (con filtros)
+// GET: Listar clientes (Buscador Mejorado)
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const { machine, type } = req.query;
-    let queryBase;
-    const params = [];
-    let paramIndex = 1;
-
+    
+    // Query base limpia
     let sql = `
       SELECT c.*, u.name AS created_by_name, a.name AS assigned_to_name
       FROM customers c
       LEFT JOIN users u ON c.created_by = u.id
       LEFT JOIN users a ON c.assigned_to = a.id
+      WHERE 1=1
     `;
+    
+    const params = [];
+    let paramIndex = 1;
 
-    if (machine) {
-      sql += ` JOIN sold_units su ON c.id = su.customer_id `;
-    }
-
-    sql += ` WHERE 1=1 `;
-
+    // 1. Filtro por TIPO (Cliente o Prospecto)
     if (type) {
       sql += ` AND c.type = $${paramIndex} `;
       params.push(type);
       paramIndex++;
     }
 
+    // 2. Filtro por MAQUINARIA (Marca, Modelo o Comentarios)
+    // Usamos una subconsulta (IN) para evitar duplicados y buscar en todo
     if (machine) {
-      sql += ` AND su.model ILIKE $${paramIndex} `;
+      sql += ` AND c.id IN (
+        SELECT customer_id FROM sold_units 
+        WHERE 
+          brand ILIKE $${paramIndex} OR 
+          model ILIKE $${paramIndex} OR 
+          comments ILIKE $${paramIndex}
+      )`;
       params.push(`%${machine}%`);
       paramIndex++;
     }
 
+    // 3. Filtro por PERMISOS (Si no es jefe, solo ve lo suyo)
     if (!canManageAll(req.user.role)) {
       sql += ` AND (c.created_by = $${paramIndex} OR c.assigned_to = $${paramIndex})`;
       params.push(req.user.id);
@@ -68,9 +72,8 @@ router.get('/', authMiddleware, async (req, res) => {
     sql += ` ORDER BY c.id DESC`;
 
     const result = await pool.query(sql, params);
-    const uniqueRows = [...new Map(result.rows.map(item => [item.id, item])).values()];
-    
-    res.json(uniqueRows);
+    res.json(result.rows);
+
   } catch (error) {
     console.error('Error al obtener clientes:', error);
     res.status(500).json({ message: 'Error de servidor' });
@@ -79,11 +82,9 @@ router.get('/', authMiddleware, async (req, res) => {
 
 // POST: Crear Cliente
 router.post('/', authMiddleware, async (req, res) => {
-  // Validamos los datos con Joi (ahora incluye type)
   const { error, value } = customerSchema.validate(req.body);
   
   if (error) {
-    // Tip: Mostramos el detalle del error en la consola para que sepas qué falla
     console.log("Error de validación Joi:", error.details[0].message);
     return res.status(400).json({ message: 'Datos invalidos: ' + error.details[0].message });
   }
@@ -91,7 +92,6 @@ router.post('/', authMiddleware, async (req, res) => {
   const { name, company, phone, email, localidad, sector, assigned_to, type } = value;
 
   try {
-    // --- 2. AGREGAMOS 'type' A LA CONSULTA SQL ---
     const result = await pool.query(
       `INSERT INTO customers (name, company, phone, email, localidad, sector, created_by, assigned_to, type)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -105,14 +105,13 @@ router.post('/', authMiddleware, async (req, res) => {
         sector || null,
         req.user.id,
         assigned_to || req.user.id,
-        type || 'CLIENT' // Si no viene, por defecto es CLIENT
+        type || 'CLIENT'
       ]
     );
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error al crear cliente:', error);
-    // Manejo de error específico por si el email ya existe (clave duplicada)
     if (error.code === '23505') {
         return res.status(400).json({ message: 'El correo o teléfono ya está registrado' });
     }
@@ -146,7 +145,6 @@ router.put('/:id', authMiddleware, async (req, res) => {
       assignTarget = customer.assigned_to; 
     }
 
-    // --- 3. AGREGAMOS 'type' AL UPDATE ---
     const result = await pool.query(
       `UPDATE customers
        SET name = $1, company = $2, phone = $3, email = $4, localidad = $5, sector = $6, assigned_to = $7, type = $8
@@ -160,7 +158,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
         localidad || null,
         sector || null,
         assignTarget || customer.assigned_to || customer.created_by,
-        type || customer.type || 'CLIENT', // Mantenemos el tipo si no viene
+        type || customer.type || 'CLIENT',
         id,
       ]
     );
@@ -197,7 +195,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// IMPORT (Se mantiene igual, solo agregamos el type por defecto en el insert interno)
+// IMPORT
 router.post('/import', authMiddleware, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No se envio archivo' });
 
@@ -234,12 +232,10 @@ router.post('/import', authMiddleware, upload.single('file'), async (req, res) =
     if (!parsed.length) return res.status(400).json({ message: 'Faltan nombres en el archivo' });
 
     const client = await pool.connect();
-    // ... Lógica de chequeo de emails duplicados omitida por brevedad, se mantiene igual ...
 
     try {
       await client.query('BEGIN');
       for (const row of parsed) {
-         // Insertamos con type='CLIENT' por defecto para importaciones masivas
          await client.query(
            `INSERT INTO customers (name, company, phone, email, localidad, sector, created_by, assigned_to, type)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'CLIENT')`,
