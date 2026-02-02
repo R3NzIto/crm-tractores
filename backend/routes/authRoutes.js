@@ -14,20 +14,23 @@ const COOKIE_SECURE = process.env.NODE_ENV === 'production';
 const COOKIE_NAME = 'token';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// 👇 CONFIGURACIÓN FINAL (Forzando IPv4 + Puerto 465)
+console.log("--- DIAGNÓSTICO SMTP ---");
+console.log("HOST:", process.env.SMTP_HOST);
+console.log("USER:", process.env.SMTP_USER);
+console.log("PASS LONGITUD:", process.env.SMTP_PASS ? process.env.SMTP_PASS.length : "VACIO");
+console.log("------------------------");
+
 const smtpTransport = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // Usamos SSL puro
+  host: process.env.SMTP_HOST, 
+  port: Number(process.env.SMTP_PORT), 
+  secure: String(process.env.SMTP_SECURE) === 'true',
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.SMTP_USER, 
+    pass: process.env.SMTP_PASS, 
   },
   tls: {
     rejectUnauthorized: false
-  },
-  // 🛑 ESTA ES LA SOLUCIÓN AL TIMEOUT:
-  family: 4 // Forzamos a usar IPv4 para que Render no se pierda
+  }
 });
 
 const mapRoleForToken = (dbRole) => (dbRole === 'admin' ? 'jefe' : 'empleado');
