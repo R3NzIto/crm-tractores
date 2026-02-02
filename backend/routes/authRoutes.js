@@ -14,10 +14,9 @@ const COOKIE_SECURE = process.env.NODE_ENV === 'production';
 const COOKIE_NAME = 'token';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
+// 👇 CONFIGURACIÓN CORREGIDA PARA GMAIL (Evita Timeouts en Render)
 const smtpTransport = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: String(process.env.SMTP_SECURE || 'false') === 'true',
+  service: 'gmail', // Esto configura host, puerto y seguridad automáticamente
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -28,6 +27,7 @@ const mapRoleForToken = (dbRole) => (dbRole === 'admin' ? 'jefe' : 'empleado');
 const mapRoleForDb = (requestedRole) =>
   requestedRole === 'jefe' || requestedRole === 'admin' ? 'admin' : 'employee';
 
+// --- ESQUEMAS DE VALIDACIÓN ---
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(6).max(100).required(),
@@ -49,6 +49,7 @@ const resetSchema = Joi.object({
   password: Joi.string().min(6).max(100).required(),
 });
 
+// --- FUNCIONES AUXILIARES ---
 function sendAuthResponse(res, user, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
@@ -65,21 +66,28 @@ function sendAuthResponse(res, user, token) {
 
 async function sendResetEmail(to, token) {
   const resetLink = `${FRONTEND_URL}/reset?token=${token}`;
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  // Usamos el mismo usuario SMTP como remitente si no está definido FROM
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER; 
 
   const html = `
-    <p>Recibimos una solicitud para restablecer tu contrasena.</p>
-    <p>Puedes hacerlo aqui: <a href="${resetLink}">${resetLink}</a></p>
-    <p>Si no solicitaste este cambio, ignora este mensaje.</p>
+    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+      <h2 style="color: #f0b43a;">Wolf Hard - Recuperación</h2>
+      <p>Recibimos una solicitud para restablecer tu contraseña.</p>
+      <p>Haz clic en el siguiente enlace para crear una nueva:</p>
+      <a href="${resetLink}" style="background-color: #f0b43a; color: #000; padding: 10px 15px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">Restablecer Contraseña</a>
+      <p style="margin-top: 20px; color: #888; font-size: 0.9em;">Si no solicitaste esto, ignora este mensaje.</p>
+    </div>
   `;
 
   await smtpTransport.sendMail({
-    from,
+    from: `"Wolf Hard CRM" <${from}>`, // Nombre amigable
     to,
-    subject: 'Recuperar contrasena - CRM Tractores',
+    subject: 'Recuperar contraseña - CRM Tractores',
     html,
   });
 }
+
+// --- RUTAS ---
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -93,12 +101,12 @@ router.post('/login', async (req, res) => {
     const user = result.rows[0];
 
     if (!user) {
-      return res.status(400).json({ message: 'Usuario o contrasena incorrectos' });
+      return res.status(400).json({ message: 'Usuario o contraseña incorrectos' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Usuario o contrasena incorrectos' });
+      return res.status(400).json({ message: 'Usuario o contraseña incorrectos' });
     }
 
     const roleForToken = mapRoleForToken(user.role);
@@ -129,6 +137,12 @@ router.post('/register', async (req, res) => {
   const dbRole = mapRoleForDb(role);
 
   try {
+    // Verificación manual de duplicados para dar un mensaje claro
+    const checkUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (checkUser.rows.length > 0) {
+        return res.status(400).json({ message: 'El email ya está registrado' });
+    }
+
     const hashed = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
@@ -167,15 +181,19 @@ router.post('/forgot', async (req, res) => {
   const { email } = value;
 
   try {
-    const result = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT id, name FROM users WHERE email = $1', [email]);
     const user = result.rows[0];
+    
+    // Por seguridad no decimos si existe o no, pero logueamos para debug
     if (!user) {
+      console.log(`Intento de recuperar contraseña para email no existente: ${email}`);
       return res.json({ message: 'Si el correo existe, enviaremos instrucciones.' });
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    const expires_at = new Date(Date.now() + 1000 * 60 * 30);
+    const expires_at = new Date(Date.now() + 1000 * 60 * 60); // 1 hora de validez
 
+    // Guardamos en la tabla password_resets
     await pool.query(
       `INSERT INTO password_resets (user_id, token, expires_at, used)
        VALUES ($1, $2, $3, FALSE)`,
@@ -186,11 +204,12 @@ router.post('/forgot', async (req, res) => {
       await sendResetEmail(email, token);
     } catch (mailErr) {
       console.error('Error enviando email de reset:', mailErr);
-      return res.status(500).json({ message: 'No pudimos enviar el correo de recuperacion' });
+      return res.status(500).json({ message: 'No pudimos enviar el correo de recuperación. Intenta más tarde.' });
     }
 
     res.json({
       message: 'Instrucciones enviadas si el correo es valido.',
+      // En desarrollo mandamos el token por si no tienes email configurado aún
       reset_token: process.env.NODE_ENV === 'development' ? token : undefined,
     });
   } catch (err) {
@@ -207,6 +226,7 @@ router.post('/reset', async (req, res) => {
   const { token, password } = value;
 
   try {
+    // Buscamos el token válido y no usado
     const result = await pool.query(
       `SELECT pr.id, pr.user_id, pr.expires_at, pr.used
        FROM password_resets pr
@@ -215,28 +235,35 @@ router.post('/reset', async (req, res) => {
     );
 
     const resetReq = result.rows[0];
-    if (!resetReq || resetReq.used || new Date(resetReq.expires_at) < new Date()) {
-      return res.status(400).json({ message: 'Token invalido o expirado' });
+    
+    if (!resetReq) {
+        return res.status(400).json({ message: 'Token inválido' });
+    }
+    
+    if (resetReq.used) {
+        return res.status(400).json({ message: 'Este enlace ya fue utilizado' });
+    }
+    
+    if (new Date(resetReq.expires_at) < new Date()) {
+        return res.status(400).json({ message: 'El enlace ha expirado' });
     }
 
     const hashed = await bcrypt.hash(password, 10);
 
+    // Actualizamos contraseña
     const updateRes = await pool.query(
-      'UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING email, password_hash',
-      [
-      hashed,
-      resetReq.user_id,
-      ]
+      'UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING email',
+      [hashed, resetReq.user_id]
     );
 
     if (updateRes.rowCount === 0) {
-      return res.status(500).json({ message: 'No se pudo actualizar la contrasena' });
+      return res.status(500).json({ message: 'No se pudo actualizar la contraseña (Usuario no encontrado)' });
     }
-    console.log('[reset] actualizada fila:', updateRes.rows[0]);
 
+    // Marcamos token como usado
     await pool.query('UPDATE password_resets SET used = TRUE WHERE id = $1', [resetReq.id]);
 
-    res.json({ message: 'Contrasena actualizada. Ya puedes iniciar sesion.' });
+    res.json({ message: 'Contraseña actualizada. Ya puedes iniciar sesión.' });
   } catch (err) {
     console.error('Error en reset:', err);
     res.status(500).json({ message: 'Error de servidor' });
@@ -244,4 +271,3 @@ router.post('/reset', async (req, res) => {
 });
 
 module.exports = router;
-
