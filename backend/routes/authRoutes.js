@@ -14,18 +14,20 @@ const COOKIE_SECURE = process.env.NODE_ENV === 'production';
 const COOKIE_NAME = 'token';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// 👇 CONFIGURACIÓN TODOTERRENO (Puerto 587 + TLS relajado)
+// 👇 CONFIGURACIÓN FINAL (Forzando IPv4 + Puerto 465)
 const smtpTransport = nodemailer.createTransport({
-  host: 'smtp.gmail.com', 
-  port: 587,              // Usamos 587 en lugar de 465
-  secure: false,          // Para 587 esto debe ser false (usa STARTTLS)
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // Usamos SSL puro
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
   tls: {
-    rejectUnauthorized: false // ⚠️ IMPORTANTE: Esto evita errores de certificado en redes de la nube
-  }
+    rejectUnauthorized: false
+  },
+  // 🛑 ESTA ES LA SOLUCIÓN AL TIMEOUT:
+  family: 4 // Forzamos a usar IPv4 para que Render no se pierda
 });
 
 const mapRoleForToken = (dbRole) => (dbRole === 'admin' ? 'jefe' : 'empleado');
