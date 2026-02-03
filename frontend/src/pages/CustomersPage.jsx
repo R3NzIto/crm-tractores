@@ -24,7 +24,7 @@ import {
 import icon from "leaflet/dist/images/marker-icon.png";
 import iconShadow from "leaflet/dist/images/marker-shadow.png";
 
-// URL DEL BACKEND (Ajustar si es necesario)
+// URL DEL BACKEND
 const API_URL = import.meta.env.VITE_API_URL || 'https://wolfhard-backend.onrender.com';
 
 let DefaultIcon = L.icon({
@@ -37,7 +37,12 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 const MANAGER_ROLES = ["admin", "manager", "jefe"];
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString() : "Sin fecha");
-// const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-"); // Ya no usamos fecha de venta visualmente
+
+// --- GENERADOR DE OPCIONES DE HP (50 a 400 de 5 en 5) ---
+const HP_OPTIONS = [];
+for (let i = 50; i <= 400; i += 5) {
+  HP_OPTIONS.push(i);
+}
 
 function CustomersPage() {
   const [customers, setCustomers] = useState([]);
@@ -65,18 +70,16 @@ function CustomersPage() {
   const [units, setUnits] = useState([]);
   
   // Listas maestras para los Selects
-  const [allTractorModels, setAllTractorModels] = useState([]); 
-  const [tractorBrands, setTractorBrands] = useState([]); 
-  const [filteredModels, setFilteredModels] = useState([]); 
+  // 👇 CORRECCIÓN: Eliminamos allTractorModels que no se usaba
+  const [wolfHardModels, setWolfHardModels] = useState([]); 
 
-  // 👇 ESTADO ACTUALIZADO (Horas y Comentarios, sin fecha/accesorios)
   const [unitForm, setUnitForm] = useState({ 
     brand: "", 
     model: "", 
     year: "", 
     hp: "", 
-    hours: "",      // Nuevo: Horas de uso
-    comments: "",   // Nuevo: Estado general
+    hours: "",      
+    comments: "",   
     interventions: "", 
     intervention_date: "",
     origin: "TERCEROS" 
@@ -107,24 +110,27 @@ function CustomersPage() {
     setError(err?.message || "No pudimos completar la operacion");
   };
 
-  // 1️⃣ CARGAR LISTA MAESTRA DE TRACTORES AL INICIO
+  // 1️⃣ CARGAR LISTA MAESTRA (SOLO WOLF HARD)
   useEffect(() => {
-    fetch(`${API_URL}/api/models`)
+    fetch(`${API_URL}/api/models`) 
       .then(res => res.json())
       .then(data => {
-        setAllTractorModels(data);
-        const uniqueBrands = [...new Set(data.map(item => item.brand))];
-        setTractorBrands(uniqueBrands);
+        // Solo guardamos los de Wolf Hard para el selector
+        const whModels = data.filter(m => m.brand === 'Wolf Hard');
+        setWolfHardModels(whModels);
       })
       .catch(err => console.error("Error cargando modelos:", err));
   }, []);
 
-  // 2️⃣ MANEJAR CAMBIO DE MARCA (Cascada)
-  const handleBrandChange = (e) => {
-    const selectedBrand = e.target.value;
-    const models = allTractorModels.filter(m => m.brand === selectedBrand);
-    setFilteredModels(models);
-    setUnitForm({ ...unitForm, brand: selectedBrand, model: "" });
+  // 2️⃣ MANEJAR CAMBIO DE ORIGEN (Wolf Hard vs Terceros)
+  const handleOriginChange = (newOrigin) => {
+    if (newOrigin === 'WOLF_HARD') {
+        // Si es Wolf Hard, fijamos la marca y limpiamos modelo
+        setUnitForm({ ...unitForm, origin: 'WOLF_HARD', brand: 'Wolf Hard', model: '' });
+    } else {
+        // Si es Terceros, limpiamos para que escriba libremente
+        setUnitForm({ ...unitForm, origin: 'TERCEROS', brand: '', model: '' });
+    }
   };
 
   const loadCustomers = useCallback(async ( machineFilter = "") => {
@@ -177,10 +183,8 @@ function CustomersPage() {
     setUnitsCustomer(customer);
     setUnitsLoading(true);
     setEditingUnitId(null);
-    // Resetear formulario con campos nuevos
     setUnitForm({ brand: "", model: "", year: "", hp: "", hours: "", comments: "", interventions: "", intervention_date: "", origin: "TERCEROS" });
     setNewIntervention({ date: "", text: "" });
-    setFilteredModels([]); 
     setOpenMenuId(null); 
     try {
       const data = await getCustomerUnits(token, customer.id);
@@ -195,20 +199,19 @@ function CustomersPage() {
   const startEditUnit = (unit) => {
     setEditingUnitId(unit.id);
     
-    // Filtramos los modelos para que el select funcione al editar
-    const modelsForThisBrand = allTractorModels.filter(m => m.brand === unit.brand);
-    setFilteredModels(modelsForThisBrand);
+    // Al editar, si la marca es Wolf Hard, el origen debe ser WOLF_HARD
+    const detectedOrigin = unit.brand === 'Wolf Hard' ? 'WOLF_HARD' : 'TERCEROS';
 
     setUnitForm({
       brand: unit.brand || "",
       model: unit.model || "",
       year: unit.year || "",
       hp: unit.hp || "",
-      hours: unit.hours || "",       // Cargar horas
-      comments: unit.comments || "", // Cargar comentarios
+      hours: unit.hours || "",       
+      comments: unit.comments || "", 
       interventions: unit.interventions || "",
       intervention_date: unit.intervention_date ? unit.intervention_date.split('T')[0] : "",
-      origin: unit.origin || "TERCEROS"
+      origin: detectedOrigin
     });
     setNewIntervention({ date: new Date().toISOString().split('T')[0], text: "" });
   };
@@ -217,7 +220,6 @@ function CustomersPage() {
     setEditingUnitId(null);
     setUnitForm({ brand: "", model: "", year: "", hp: "", hours: "", comments: "", interventions: "", intervention_date: "", origin: "TERCEROS" });
     setNewIntervention({ date: "", text: "" });
-    setFilteredModels([]);
   };
 
   const addToHistory = () => {
@@ -251,11 +253,9 @@ function CustomersPage() {
       } else {
         await createCustomerUnit(token, unitsCustomer.id, unitForm);
       }
-      // Limpiar formulario completo
       setUnitForm({ brand: "", model: "", year: "", hp: "", hours: "", comments: "", interventions: "", intervention_date: "", origin: "TERCEROS" });
       setNewIntervention({ date: "", text: "" });
       setEditingUnitId(null);
-      setFilteredModels([]);
       await loadUnits(unitsCustomer);
     } catch (err) {
       console.error(err);
@@ -528,34 +528,46 @@ function CustomersPage() {
               {/* SELECTOR DE ORIGEN */}
               <div style={{gridColumn: '1 / -1', display: 'flex', gap: '20px', marginBottom: '5px', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '5px'}}>
                 <label style={{display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize:'0.9rem'}}>
-                    <input type="radio" name="origin" value="TERCEROS" checked={unitForm.origin === 'TERCEROS'} onChange={e => setUnitForm({...unitForm, origin: e.target.value})} />
+                    <input type="radio" name="origin" value="TERCEROS" checked={unitForm.origin === 'TERCEROS'} onChange={() => handleOriginChange('TERCEROS')} />
                     <span>🏢 Unidad de Terceros</span>
                 </label>
                 <label style={{display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize:'0.9rem'}}>
-                    <input type="radio" name="origin" value="WOLF_HARD" checked={unitForm.origin === 'WOLF_HARD'} onChange={e => setUnitForm({...unitForm, origin: e.target.value})} />
+                    <input type="radio" name="origin" value="WOLF_HARD" checked={unitForm.origin === 'WOLF_HARD'} onChange={() => handleOriginChange('WOLF_HARD')} />
                     <span style={{color: '#f0b43a', fontWeight: 'bold'}}>🐺 Unidad Wolf Hard</span>
                 </label>
               </div>
 
-              {/* SELECTOR DE MARCA */}
-              <select value={unitForm.brand} onChange={handleBrandChange} required style={{borderColor: '#f0b43a'}}>
-                <option value="">-- Marca --</option>
-                {tractorBrands.map((b, i) => <option key={i} value={b}>{b}</option>)}
-              </select>
-
-              {/* SELECTOR DE MODELO */}
-              <select value={unitForm.model} onChange={e => setUnitForm({...unitForm, model: e.target.value})} required disabled={!unitForm.brand}>
-                <option value="">-- Modelo --</option>
-                {filteredModels.map((m) => <option key={m.id} value={m.model}>{m.model}</option>)}
-              </select>
+              {/* CAMPOS DE MARCA Y MODELO (DINÁMICOS) */}
+              {unitForm.origin === 'WOLF_HARD' ? (
+                <>
+                    {/* SI ES WOLF HARD: Marca bloqueada, Modelo Select */}
+                    <input type="text" value="Wolf Hard" disabled style={{borderColor: '#f0b43a', color: '#f0b43a', fontWeight: 'bold'}} />
+                    
+                    <select value={unitForm.model} onChange={e => setUnitForm({...unitForm, model: e.target.value})} required style={{borderColor: '#f0b43a'}}>
+                        <option value="">-- Seleccionar Modelo --</option>
+                        {wolfHardModels.map((m) => <option key={m.id} value={m.model}>{m.model}</option>)}
+                    </select>
+                </>
+              ) : (
+                <>
+                    {/* SI ES TERCEROS: Inputs libres */}
+                    <input type="text" placeholder="Marca (Ej: John Deere)" value={unitForm.brand} onChange={e => setUnitForm({...unitForm, brand: e.target.value})} required />
+                    <input type="text" placeholder="Modelo (Ej: 6105J)" value={unitForm.model} onChange={e => setUnitForm({...unitForm, model: e.target.value})} required />
+                </>
+              )}
 
               <input type="number" placeholder="Año" value={unitForm.year} onChange={e => setUnitForm({...unitForm, year: e.target.value})} />
-              <input type="number" placeholder="HP (Potencia)" value={unitForm.hp} onChange={e => setUnitForm({...unitForm, hp: e.target.value})} />
               
-              {/* 👇 NUEVO CAMPO: HORAS */}
+              {/* SELECTOR DE HP (50 a 400) */}
+              <select value={unitForm.hp} onChange={e => setUnitForm({...unitForm, hp: e.target.value})}>
+                <option value="">-- Potencia (HP) --</option>
+                {HP_OPTIONS.map(hp => (
+                    <option key={hp} value={hp}>{hp} HP</option>
+                ))}
+              </select>
+              
               <input type="number" placeholder="Horas de Uso ⏱️" value={unitForm.hours} onChange={e => setUnitForm({...unitForm, hours: e.target.value})} style={{borderColor: '#f0b43a'}} />
 
-              {/* 👇 NUEVO CAMPO: COMENTARIOS */}
               <textarea 
                 placeholder="Comentarios sobre el estado (ej: Cubiertas al 50%, motor reparado...)" 
                 value={unitForm.comments} 
@@ -563,7 +575,7 @@ function CustomersPage() {
                 style={{gridColumn: '1 / -1', minHeight: '60px', resize: 'vertical'}}
               />
               
-              {/* 👇 SECCIÓN DE SERVICE: SOLO APARECE SI ES WOLF HARD */}
+              {/* SECCIÓN DE SERVICE: SOLO APARECE SI ES WOLF HARD */}
               {unitForm.origin === 'WOLF_HARD' && (
                 <div style={{gridColumn: '1 / -1', background:'rgba(240, 180, 58, 0.1)', border: '1px dashed #f0b43a', padding:10, borderRadius:6, marginTop:5}}>
                     <label style={{display:'block', fontSize:'0.9rem', color:'#f0b43a', marginBottom:'8px'}}>
@@ -597,7 +609,7 @@ function CustomersPage() {
                         borderLeft: unit.origin === 'WOLF_HARD' ? '4px solid #f0b43a' : '4px solid #666',
                         padding: '10px 15px', borderRadius:'6px', display:'flex', flexDirection:'column', gap:'5px'
                       }}>
-                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                              <div>
                                 <div style={{fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px', color: unit.origin === 'WOLF_HARD' ? '#f0b43a' : '#888'}}>
                                    {unit.origin === 'WOLF_HARD' ? '⭐ Wolf Hard' : '🏢 Terceros'}
@@ -614,17 +626,17 @@ function CustomersPage() {
                                 <button className="btn secondary" style={{padding: '5px 10px'}} onClick={() => startEditUnit(unit)}>✏️</button>
                                 <button className="btn danger" style={{padding: '5px 10px'}} onClick={() => handleDeleteUnit(unit.id)}>X</button>
                              </div>
-                         </div>
-                         
-                         {unit.comments && <div style={{fontSize:'0.9rem', color:'#bbb', fontStyle:'italic'}}>"{unit.comments}"</div>}
-                         
-                         {/* HISTORIAL: SOLO SI ES WOLF HARD */}
-                         {unit.origin === 'WOLF_HARD' && unit.interventions && (
-                           <div style={{marginTop: 5, padding: '8px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
-                             <strong style={{display:'block', fontSize:'0.75rem', color:'#f0b43a', marginBottom:2}}>HISTORIAL OFICIAL:</strong>
-                             <div style={{whiteSpace: 'pre-wrap', fontSize:'0.85rem', fontFamily:'monospace'}}>{unit.interventions}</div>
-                           </div>
-                         )}
+                          </div>
+                          
+                          {unit.comments && <div style={{fontSize:'0.9rem', color:'#bbb', fontStyle:'italic'}}>"{unit.comments}"</div>}
+                          
+                          {/* HISTORIAL: SOLO SI ES WOLF HARD */}
+                          {unit.origin === 'WOLF_HARD' && unit.interventions && (
+                            <div style={{marginTop: 5, padding: '8px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
+                              <strong style={{display:'block', fontSize:'0.75rem', color:'#f0b43a', marginBottom:2}}>HISTORIAL OFICIAL:</strong>
+                              <div style={{whiteSpace: 'pre-wrap', fontSize:'0.85rem', fontFamily:'monospace'}}>{unit.interventions}</div>
+                            </div>
+                          )}
                       </div>
                     ))}
                  </div>
