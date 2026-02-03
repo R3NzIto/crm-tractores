@@ -24,7 +24,6 @@ import {
 import icon from "leaflet/dist/images/marker-icon.png";
 import iconShadow from "leaflet/dist/images/marker-shadow.png";
 
-// URL DEL BACKEND
 const API_URL = import.meta.env.VITE_API_URL || 'https://wolfhard-backend.onrender.com';
 
 let DefaultIcon = L.icon({
@@ -38,7 +37,6 @@ L.Marker.prototype.options.icon = DefaultIcon;
 const MANAGER_ROLES = ["admin", "manager", "jefe"];
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString() : "Sin fecha");
 
-// --- GENERADOR DE OPCIONES DE HP (50 a 400 de 5 en 5) ---
 const HP_OPTIONS = [];
 for (let i = 50; i <= 400; i += 5) {
   HP_OPTIONS.push(i);
@@ -55,7 +53,7 @@ function CustomersPage() {
   
   const [openMenuId, setOpenMenuId] = useState(null);
 
-  // --- ESTADOS DE NOTAS Y ACCIONES ---
+  // --- NOTAS Y ACCIONES ---
   const [notesCustomer, setNotesCustomer] = useState(null);
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(false);
@@ -65,13 +63,16 @@ function CustomersPage() {
   const [noteError, setNoteError] = useState("");
   const [actionType, setActionType] = useState('CALL'); 
 
-  // --- ESTADOS PARA UNIDADES (TRACTORES) ---
+  // --- UNIDADES (TRACTORES) ---
   const [unitsCustomer, setUnitsCustomer] = useState(null);
   const [units, setUnits] = useState([]);
   
-  // Listas maestras para los Selects
-  // 👇 CORRECCIÓN: Eliminamos allTractorModels que no se usaba
-  const [wolfHardModels, setWolfHardModels] = useState([]); 
+  // 👇 RECUPERADO: Listas maestras para Selects de Terceros
+  const [allTractorModels, setAllTractorModels] = useState([]); 
+  const [tractorBrands, setTractorBrands] = useState([]); 
+  const [filteredModels, setFilteredModels] = useState([]); // Modelos filtrados por marca seleccionada
+  
+  const [wolfHardModels, setWolfHardModels] = useState([]); // Solo modelos WH
 
   const [unitForm, setUnitForm] = useState({ 
     brand: "", 
@@ -110,26 +111,40 @@ function CustomersPage() {
     setError(err?.message || "No pudimos completar la operacion");
   };
 
-  // 1️⃣ CARGAR LISTA MAESTRA (SOLO WOLF HARD)
+  // 1️⃣ CARGAR TODAS LAS MARCAS Y MODELOS
   useEffect(() => {
     fetch(`${API_URL}/api/models`) 
       .then(res => res.json())
       .then(data => {
-        // Solo guardamos los de Wolf Hard para el selector
+        setAllTractorModels(data);
+        
+        // Extraer marcas únicas para el select de Terceros
+        const uniqueBrands = [...new Set(data.map(item => item.brand))].sort();
+        setTractorBrands(uniqueBrands);
+
+        // Separar modelos Wolf Hard
         const whModels = data.filter(m => m.brand === 'Wolf Hard');
         setWolfHardModels(whModels);
       })
       .catch(err => console.error("Error cargando modelos:", err));
   }, []);
 
-  // 2️⃣ MANEJAR CAMBIO DE ORIGEN (Wolf Hard vs Terceros)
+  // 2️⃣ MANEJAR CAMBIO DE MARCA (SOLO TERCEROS)
+  const handleBrandChange = (e) => {
+    const selectedBrand = e.target.value;
+    // Filtramos los modelos de esa marca
+    const models = allTractorModels.filter(m => m.brand === selectedBrand);
+    setFilteredModels(models);
+    setUnitForm({ ...unitForm, brand: selectedBrand, model: "" });
+  };
+
+  // 3️⃣ MANEJAR CAMBIO DE ORIGEN
   const handleOriginChange = (newOrigin) => {
     if (newOrigin === 'WOLF_HARD') {
-        // Si es Wolf Hard, fijamos la marca y limpiamos modelo
         setUnitForm({ ...unitForm, origin: 'WOLF_HARD', brand: 'Wolf Hard', model: '' });
     } else {
-        // Si es Terceros, limpiamos para que escriba libremente
         setUnitForm({ ...unitForm, origin: 'TERCEROS', brand: '', model: '' });
+        setFilteredModels([]); // Limpiamos filtro
     }
   };
 
@@ -198,9 +213,13 @@ function CustomersPage() {
 
   const startEditUnit = (unit) => {
     setEditingUnitId(unit.id);
-    
-    // Al editar, si la marca es Wolf Hard, el origen debe ser WOLF_HARD
     const detectedOrigin = unit.brand === 'Wolf Hard' ? 'WOLF_HARD' : 'TERCEROS';
+
+    // Si es terceros, pre-cargamos la lista de modelos de esa marca para que funcione el select
+    if (detectedOrigin === 'TERCEROS') {
+        const models = allTractorModels.filter(m => m.brand === unit.brand);
+        setFilteredModels(models);
+    }
 
     setUnitForm({
       brand: unit.brand || "",
@@ -220,6 +239,7 @@ function CustomersPage() {
     setEditingUnitId(null);
     setUnitForm({ brand: "", model: "", year: "", hp: "", hours: "", comments: "", interventions: "", intervention_date: "", origin: "TERCEROS" });
     setNewIntervention({ date: "", text: "" });
+    setFilteredModels([]);
   };
 
   const addToHistory = () => {
@@ -550,9 +570,16 @@ function CustomersPage() {
                 </>
               ) : (
                 <>
-                    {/* SI ES TERCEROS: Inputs libres */}
-                    <input type="text" placeholder="Marca (Ej: John Deere)" value={unitForm.brand} onChange={e => setUnitForm({...unitForm, brand: e.target.value})} required />
-                    <input type="text" placeholder="Modelo (Ej: 6105J)" value={unitForm.model} onChange={e => setUnitForm({...unitForm, model: e.target.value})} required />
+                    {/* SI ES TERCEROS: SELECTORES DE LA BASE DE DATOS */}
+                    <select value={unitForm.brand} onChange={handleBrandChange} required>
+                        <option value="">-- Marca --</option>
+                        {tractorBrands.map((b, i) => <option key={i} value={b}>{b}</option>)}
+                    </select>
+
+                    <select value={unitForm.model} onChange={e => setUnitForm({...unitForm, model: e.target.value})} required disabled={!unitForm.brand}>
+                        <option value="">-- Modelo --</option>
+                        {filteredModels.map((m) => <option key={m.id} value={m.model}>{m.model}</option>)}
+                    </select>
                 </>
               )}
 
