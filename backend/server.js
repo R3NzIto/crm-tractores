@@ -14,7 +14,8 @@ const userRoutes = require('./routes/userRoutes');
 const customerAssignRoutes = require('./routes/customerAssignRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes'); 
 const customerUnitsRoutes = require('./routes/customerUnitsRoutes');
-const modelsRoutes = require('./routes/modelsRoutes'); 
+const modelsRoutes = require('./routes/modelsRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 const app = express();
 app.set('trust proxy', 1); 
@@ -63,18 +64,16 @@ const apiLimiter = rateLimit({
     message: { message: 'Demasiadas solicitudes, intenta más tarde' },
 });
 
-// --- DEFINICIÓN DE RUTAS (CORREGIDO) ---
+// --- DEFINICIÓN DE RUTAS ---
 app.get('/', (req, res) => {
     res.send('API CRM Tractores OK');
 });
 
 app.use('/api/auth', authLimiter, authRoutes);
 
-
 app.use('/api/customers', customerRoutes); 
 
-// 👇 2. RUTAS ESPECÍFICAS (Unidades, Notas, Asignaciones)
-// Nota: Usamos :customerId/units para que coincida con la lógica de mergeParams
+// RUTAS ESPECÍFICAS (Unidades, Notas, Asignaciones)
 app.use('/api/customers/:customerId/units', customerUnitsRoutes); 
 app.use('/api/customers', customerAssignRoutes);
 app.use('/api/customers', customerNotesRoutes);
@@ -84,6 +83,9 @@ app.use('/api/agenda', agendaRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dashboard', dashboardRoutes); 
 app.use('/api/models', modelsRoutes);
+
+
+app.use('/api/analytics', analyticsRoutes);
 
 // Middleware global (opcional pero recomendado)
 app.use('/api', apiLimiter);

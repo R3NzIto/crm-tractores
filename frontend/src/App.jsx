@@ -10,6 +10,7 @@ import Layout from "./components/Layout";
 import { logoutAndRedirect } from "./api";
 import "./App.css";
 import PointsOfSalePage from "./pages/PointsOfSalePage";
+import Rendimientos from "./pages/Rendimientos";
 
 
 function ProtectedRoute({ children }) {
@@ -36,6 +37,7 @@ function App() {
            <Route path="/customers" element={<CustomersPage />} />
            <Route path="/agenda" element={<AgendaPage />} />
            <Route path="/pos" element={<PointsOfSalePage />} />
+           <Route path="analytics" element={<Rendimientos />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -3,28 +3,29 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { logoutAndRedirect } from "../api"; 
 import logoWolfHard from "../assets/logo-wolfhard.jpg";
 
+// IMPORTAMOS EL MODAL DE VENTA
+import RegisterSaleModal from "../components/RegisterSaleModal"; 
+
 const Layout = () => {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   
-  // 1. Verificamos si es JEFE o ADMIN
-  const isJefe = user?.role === 'jefe' || user?.role === 'admin'; 
+  // Verificamos si es jefe para mostrar opciones extra
+  const isJefe = user?.role === 'jefe' || user?.role === 'admin' || user?.role === 'manager'; 
 
-  // Estado para controlar si el menú está abierto o cerrado en el celular
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
 
   const handleLogout = () => {
     logoutAndRedirect("/");
   };
 
   const isActive = (path) => location.pathname === path ? "active" : "";
-
-  // Función para cerrar el menú automáticamente al tocar un enlace
   const closeSidebar = () => setIsSidebarOpen(false);
 
   return (
     <div className="dashboard-layout">
-      {/* Sombra de fondo (Overlay) - Solo visible cuando abres el menú en móvil */}
+      {/* Sombra de fondo (Solo móvil) */}
       <div 
         className={`sidebar-overlay ${isSidebarOpen ? "visible" : ""}`} 
         onClick={closeSidebar}
@@ -35,8 +36,6 @@ const Layout = () => {
         <div className="sidebar-header">
           <img src={logoWolfHard} alt="Logo" className="sidebar-logo" />
           <span className="sidebar-brand">Wolf Hard</span>
-          
-          {/* Botón X para cerrar (Solo se ve en móvil gracias al CSS) */}
           <button className="close-menu-btn" onClick={closeSidebar}>✕</button>
         </div>
 
@@ -48,13 +47,21 @@ const Layout = () => {
               </Link>
             </li>
             
+            {/* 👇 NUEVA SECCIÓN: RENDIMIENTOS (Solo Jefes) */}
+            {isJefe && (
+              <li>
+                <Link to="/analytics" className={`nav-link ${isActive("/analytics")}`} onClick={closeSidebar}>
+                  <span className="icon">📈</span> Rendimientos
+                </Link>
+              </li>
+            )}
+
             <li>
               <Link to="/customers" className={`nav-link ${isActive("/customers")}`} onClick={closeSidebar}>
                 <span className="icon">👥</span> Clientes
               </Link>
             </li>
 
-            
             {isJefe && (
               <li>
                 <Link to="/pos" className={`nav-link ${isActive("/pos")}`} onClick={closeSidebar}>
@@ -62,16 +69,12 @@ const Layout = () => {
                 </Link>
               </li>
             )}
-            
 
             <li>
               <Link to="/agenda" className={`nav-link ${isActive("/agenda")}`} onClick={closeSidebar}>
                 <span className="icon">📅</span> Agenda
               </Link>
             </li>
-
-            {/* Opcional: Link a Usuarios también solo para el jefe */}
-
           </ul>
         </nav>
 
@@ -84,10 +87,8 @@ const Layout = () => {
 
       {/* --- CONTENIDO PRINCIPAL --- */}
       <div className="main-wrapper">
-        {/* BARRA SUPERIOR (TOP NAVBAR) */}
         <header className="top-navbar">
           <div className="navbar-left">
-            {/* Botón Hamburguesa ☰ (Solo se ve en móvil gracias al CSS) */}
             <button 
               className="mobile-menu-btn" 
               onClick={() => setIsSidebarOpen(true)}
@@ -96,19 +97,63 @@ const Layout = () => {
             </button>
             <h2 className="page-title">CRM Corporativo</h2>
           </div>
-          <div className="navbar-right">
-            <div className="user-profile">
-              <span className="user-name">{user.name?.split(" ")[0] || "Usuario"}</span>
-              <span className="user-role badge">{user.role || "Emp"}</span>
+          
+          {/* 👇 AQUÍ ESTÁ EL ARREGLO VISUAL (Espacio y Botón Grande) */}
+          <div className="navbar-right" style={{ display: 'flex', alignItems: 'center', gap: '25px' }}>
+            
+            <button 
+                onClick={() => setIsSaleModalOpen(true)}
+                style={{
+                    backgroundColor: '#10B981', // Verde éxito
+                    color: 'white', 
+                    border: 'none', 
+                    padding: '10px 20px', 
+                    borderRadius: '8px', 
+                    cursor: 'pointer', 
+                    fontWeight: 'bold',
+                    fontSize: '0.95rem',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    boxShadow: '0 4px 6px rgba(16, 185, 129, 0.25)', // Sombrita elegante
+                    transition: 'transform 0.1s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+                <span>💰</span> <span>Nueva Venta</span>
+            </button>
+
+            {/* Separador vertical sutil */}
+            <div style={{ height: '30px', width: '1px', background: '#333' }}></div>
+
+            <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{textAlign: 'right', lineHeight: '1.2'}}>
+                <span className="user-name" style={{display: 'block', fontWeight: 'bold'}}>{user.name?.split(" ")[0] || "Usuario"}</span>
+                <span className="user-role badge" style={{fontSize: '0.75rem', opacity: 0.8}}>{user.role || "Emp"}</span>
+              </div>
+              {/* Avatar circular simple con la inicial */}
+              <div style={{
+                  width: '40px', height: '40px', borderRadius: '50%', 
+                  background: '#333', color: 'white', display: 'flex', 
+                  alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+              }}>
+                  {user.name ? user.name[0].toUpperCase() : "U"}
+              </div>
             </div>
+
           </div>
         </header>
 
-        {/* AQUÍ SE CARGAN TUS PÁGINAS */}
+        {/* AQUÍ SE CARGAN TUS PÁGINAS (Dashboard, Rendimientos, etc) */}
         <main className="content-area">
           <Outlet /> 
         </main>
       </div>
+
+      {/* --- MODAL FLOTANTE DE VENTA --- */}
+      <RegisterSaleModal 
+        isOpen={isSaleModalOpen} 
+        onClose={() => setIsSaleModalOpen(false)} 
+      />
     </div>
   );
 };
