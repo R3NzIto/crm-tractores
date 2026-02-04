@@ -18,7 +18,8 @@ import {
   getCustomerUnits,
   createCustomerUnit,
   updateCustomerUnit,
-  deleteCustomerUnit
+  deleteCustomerUnit,
+  deleteCustomersBatch // 👈 NUEVO IMPORT
 } from "../api";
 
 import icon from "leaflet/dist/images/marker-icon.png";
@@ -51,6 +52,9 @@ function CustomersPage() {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   
+  // 👇 NUEVO ESTADO PARA SELECCIÓN MÚLTIPLE
+  const [selectedIds, setSelectedIds] = useState([]);
+
   const [openMenuId, setOpenMenuId] = useState(null);
 
   // --- NOTAS Y ACCIONES ---
@@ -67,12 +71,11 @@ function CustomersPage() {
   const [unitsCustomer, setUnitsCustomer] = useState(null);
   const [units, setUnits] = useState([]);
   
-  // 👇 RECUPERADO: Listas maestras para Selects de Terceros
+  // Listas maestras
   const [allTractorModels, setAllTractorModels] = useState([]); 
   const [tractorBrands, setTractorBrands] = useState([]); 
-  const [filteredModels, setFilteredModels] = useState([]); // Modelos filtrados por marca seleccionada
-  
-  const [wolfHardModels, setWolfHardModels] = useState([]); // Solo modelos WH
+  const [filteredModels, setFilteredModels] = useState([]); 
+  const [wolfHardModels, setWolfHardModels] = useState([]); 
 
   const [unitForm, setUnitForm] = useState({ 
     brand: "", 
@@ -117,34 +120,75 @@ function CustomersPage() {
       .then(res => res.json())
       .then(data => {
         setAllTractorModels(data);
-        
-        // Extraer marcas únicas para el select de Terceros
         const uniqueBrands = [...new Set(data.map(item => item.brand))].sort();
         setTractorBrands(uniqueBrands);
-
-        // Separar modelos Wolf Hard
         const whModels = data.filter(m => m.brand === 'Wolf Hard');
         setWolfHardModels(whModels);
       })
       .catch(err => console.error("Error cargando modelos:", err));
   }, []);
 
-  // 2️⃣ MANEJAR CAMBIO DE MARCA (SOLO TERCEROS)
+  // --- FILTROS ---
+  const filteredCustomers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return customers.filter((c) => {
+      if (filters.localidad && c.localidad !== filters.localidad) return false;
+      if (filters.sector && c.sector !== filters.sector) return false;
+      if (filters.assigned && String(c.assigned_to || "") !== filters.assigned) return false;
+      if (!q) return true;
+      return [c.name, c.email, c.company, c.localidad, c.sector].join(" ").toLowerCase().includes(q);
+    });
+  }, [customers, filters, search]);
+
+  // --- 👇 LÓGICA DE SELECCIÓN MÚLTIPLE ---
+  
+  const handleSelectOne = (id) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(itemId => itemId !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const allIds = filteredCustomers.map(c => c.id);
+      setSelectedIds(allIds);
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`⚠️ ¿Estás seguro de ELIMINAR ${selectedIds.length} clientes seleccionados?\nEsta acción no se puede deshacer.`)) return;
+    
+    setLoading(true);
+    try {
+      await deleteCustomersBatch(token, selectedIds);
+      setSelectedIds([]); // Limpiar selección
+      await loadCustomers(true); // Recargar lista
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  // ------------------------------------
+
   const handleBrandChange = (e) => {
     const selectedBrand = e.target.value;
-    // Filtramos los modelos de esa marca
     const models = allTractorModels.filter(m => m.brand === selectedBrand);
     setFilteredModels(models);
     setUnitForm({ ...unitForm, brand: selectedBrand, model: "" });
   };
 
-  // 3️⃣ MANEJAR CAMBIO DE ORIGEN
   const handleOriginChange = (newOrigin) => {
     if (newOrigin === 'WOLF_HARD') {
         setUnitForm({ ...unitForm, origin: 'WOLF_HARD', brand: 'Wolf Hard', model: '' });
     } else {
         setUnitForm({ ...unitForm, origin: 'TERCEROS', brand: '', model: '' });
-        setFilteredModels([]); // Limpiamos filtro
+        setFilteredModels([]);
     }
   };
 
@@ -215,7 +259,6 @@ function CustomersPage() {
     setEditingUnitId(unit.id);
     const detectedOrigin = unit.brand === 'Wolf Hard' ? 'WOLF_HARD' : 'TERCEROS';
 
-    // Si es terceros, pre-cargamos la lista de modelos de esa marca para que funcione el select
     if (detectedOrigin === 'TERCEROS') {
         const models = allTractorModels.filter(m => m.brand === unit.brand);
         setFilteredModels(models);
@@ -435,17 +478,6 @@ function CustomersPage() {
   const localidadOptions = useMemo(() => Array.from(new Set(customers.map((c) => (c.localidad || "").trim()).filter(Boolean))).sort(), [customers]);
   const sectorOptions = useMemo(() => Array.from(new Set(customers.map((c) => (c.sector || "").trim()).filter(Boolean))).sort(), [customers]);
   
-  const filteredCustomers = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return customers.filter((c) => {
-      if (filters.localidad && c.localidad !== filters.localidad) return false;
-      if (filters.sector && c.sector !== filters.sector) return false;
-      if (filters.assigned && String(c.assigned_to || "") !== filters.assigned) return false;
-      if (!q) return true;
-      return [c.name, c.email, c.company, c.localidad, c.sector].join(" ").toLowerCase().includes(q);
-    });
-  }, [customers, filters, search]);
-
   const clearFilters = () => { setSearch(""); setFilters({ localidad: "", sector: "", assigned: "" }); };
   const isEditing = Boolean(editingId); 
   const canSubmit = isEditing ? canEditExisting : canCreate;
@@ -458,7 +490,7 @@ function CustomersPage() {
         <span className="tag">{customerCounts.total} Clientes</span>
       </div>
 
-      {/* --- FORMULARIO DE CLIENTES (ARRIBA) --- */}
+      {/* --- FORMULARIO DE CLIENTES --- */}
       <div className="card" style={{ marginBottom: 14 }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ margin: "0 0 8px" }}>{editingId ? "Editar Cliente" : "Nuevo Cliente"}</h3>
         {!canSubmit && <p className="muted" style={{marginTop:0}}>Tu rol no permite crear/editar clientes.</p>}
@@ -490,7 +522,18 @@ function CustomersPage() {
            </div>
         </div>
 
-        <div className="toolbar" style={{gap:8, flexWrap:'wrap'}}>
+        <div className="toolbar" style={{gap:8, flexWrap:'wrap', alignItems:'center'}}>
+           {/* 👇 BOTÓN DE BORRADO MASIVO */}
+           {selectedIds.length > 0 && (
+             <button 
+               className="btn danger" 
+               onClick={handleBulkDelete}
+               style={{ marginRight: '10px', boxShadow: '0 0 10px rgba(239, 68, 68, 0.4)', fontWeight:'bold' }}
+             >
+               🗑️ Eliminar ({selectedIds.length}) seleccionados
+             </button>
+           )}
+
            <input type="text" placeholder="Buscar cliente..." value={search} onChange={(e) => setSearch(e.target.value)} />
            <select value={filters.localidad} onChange={(e) => setFilters({ ...filters, localidad: e.target.value })}><option value="">Localidad</option>{localidadOptions.map(l => <option key={l} value={l}>{l}</option>)}</select>
            <select value={filters.sector} onChange={(e) => setFilters({ ...filters, sector: e.target.value })}><option value="">Sector</option>{sectorOptions.map(s => <option key={s} value={s}>{s}</option>)}</select>
@@ -501,12 +544,30 @@ function CustomersPage() {
           <table>
             <thead>
               <tr>
+                {/* 👇 CHECKBOX SELECT ALL */}
+                <th style={{width: 40, textAlign:'center'}}>
+                  <input 
+                    type="checkbox" 
+                    onChange={handleSelectAll} 
+                    checked={filteredCustomers.length > 0 && selectedIds.length === filteredCustomers.length}
+                    style={{cursor:'pointer', transform:'scale(1.2)'}}
+                  />
+                </th>
                 <th>ID</th><th>Nombre</th><th>Teléfono</th><th>Localidad</th><th>Sector</th><th style={{width: 120}}>Opciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredCustomers.map(c => (
-                <tr key={c.id}>
+                <tr key={c.id} style={{background: selectedIds.includes(c.id) ? 'rgba(240, 180, 58, 0.1)' : 'transparent'}}>
+                  {/* 👇 CHECKBOX INDIVIDUAL */}
+                  <td style={{textAlign:'center'}}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedIds.includes(c.id)}
+                      onChange={() => handleSelectOne(c.id)}
+                      style={{cursor:'pointer', transform:'scale(1.2)'}}
+                    />
+                  </td>
                   <td>{c.id}</td><td>{c.name}</td><td className="muted">{c.phone || "-"}</td><td>{c.localidad||"-"}</td><td>{c.sector||"-"}</td>
                   
                   <td style={{position: 'relative'}}>

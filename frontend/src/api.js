@@ -139,6 +139,16 @@ export async function deleteCustomer(token, id) {
   });
 }
 
+// 👇👇 AQUÍ ESTÁ LA FUNCIÓN NUEVA QUE FALTABA 👇👇
+export async function deleteCustomersBatch(token, ids) {
+  return apiFetch("/api/customers/delete-batch", {
+    method: "POST",
+    token,
+    body: { ids }, 
+  });
+}
+// 👆👆 FIN DE LA FUNCIÓN NUEVA 👆👆
+
 export async function importCustomers(token, file) {
   const formData = new FormData();
   formData.append("file", file);
@@ -264,4 +274,3 @@ export const deleteCustomerUnit = async (token, customerId, unitId) => {
   });
   if (!response.ok) throw new Error("Error eliminando unidad");
 };
-

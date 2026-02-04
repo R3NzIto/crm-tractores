@@ -49,7 +49,6 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 
     // 2. Filtro por MAQUINARIA (Marca, Modelo o Comentarios)
-    // Usamos una subconsulta (IN) para evitar duplicados y buscar en todo
     if (machine) {
       sql += ` AND c.id IN (
         SELECT customer_id FROM sold_units 
@@ -62,12 +61,12 @@ router.get('/', authMiddleware, async (req, res) => {
       paramIndex++;
     }
 
-    // 3. Filtro por PERMISOS (Si no es jefe, solo ve lo suyo)
-   // if (!canManageAll(req.user.role)) {
-     // sql += ` AND (c.created_by = $${paramIndex} OR c.assigned_to = $${paramIndex})`;
-      //params.push(req.user.id);
-      //paramIndex++;
-   // }
+    // 3. Filtro por PERMISOS (Opcional, descomentar si se requiere restringir vista)
+    // if (!canManageAll(req.user.role)) {
+    //   sql += ` AND (c.created_by = $${paramIndex} OR c.assigned_to = $${paramIndex})`;
+    //   params.push(req.user.id);
+    //   paramIndex++;
+    // }
 
     sql += ` ORDER BY c.id DESC`;
 
@@ -170,7 +169,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE: Eliminar Cliente
+// DELETE: Eliminar Cliente Individual
 router.delete('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
 
@@ -192,6 +191,33 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar cliente:', error);
     res.status(500).json({ message: 'Error de servidor' });
+  }
+});
+
+// 👇 NUEVA RUTA: DELETE BATCH (Eliminación Masiva)
+router.post('/delete-batch', authMiddleware, async (req, res) => {
+  const { ids } = req.body; // Esperamos un array ej: [1, 5, 8]
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ message: 'No se enviaron IDs para eliminar' });
+  }
+
+  try {
+    let query = 'DELETE FROM customers WHERE id = ANY($1)';
+    const params = [ids];
+
+    // SEGURIDAD: Si no es jefe, solo puede borrar los que él creó
+    if (!canManageAll(req.user.role)) {
+       query += ' AND created_by = $2';
+       params.push(req.user.id);
+    }
+
+    const result = await pool.query(query, params);
+
+    res.json({ message: `${result.rowCount} clientes eliminados correctamente.` });
+  } catch (err) {
+    console.error('Error batch delete:', err);
+    res.status(500).json({ message: 'Error al eliminar clientes seleccionados' });
   }
 });
 
