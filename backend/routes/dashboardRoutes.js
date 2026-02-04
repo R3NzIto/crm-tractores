@@ -97,33 +97,48 @@ router.get('/reports', authMiddleware, async (req, res) => {
     }
 });
 
-// 4. REGISTRAR VENTA
-router.post('/register-sale', authMiddleware, async (req, res) => {
-    const { customer_id, sold_unit_id, amount, currency, notes } = req.body;
+// 4. REGISTRAR VENTA (ACTUALIZADO CON MODELO Y HP)
+// Nota: Unificamos la ruta a '/sale' para que coincida con el frontend
+router.post('/sale', authMiddleware, async (req, res) => {
+    // 👇 Recibimos los nuevos campos model y hp
+    const { customer_id, sold_unit_id, amount, currency, notes, model, hp } = req.body;
     
     try {
-        // A. Guardar en la tabla financiera
+        // A. Guardar en la tabla financiera (sales_records)
+        // Asegúrate de que las columnas 'model' y 'hp' existan en la tabla (si no, ejecuta el ALTER TABLE)
         const insertSale = `
-            INSERT INTO sales_records (user_id, customer_id, sold_unit_id, amount, currency, notes)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO sales_records (user_id, customer_id, sold_unit_id, amount, currency, notes, model, hp)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING *
         `;
-        await pool.query(insertSale, [req.user.id, customer_id, sold_unit_id || null, amount || 0, currency || 'USD', notes || '']);
+        // Si no vienen datos, mandamos null
+        await pool.query(insertSale, [
+            req.user.id, 
+            customer_id, 
+            sold_unit_id || null, 
+            amount || 0, 
+            currency || 'USD', 
+            notes || '',
+            model || null, // Nuevo
+            hp || null     // Nuevo
+        ]);
 
-        // B. Crear nota para que salga en el Dashboard
+        // B. Crear nota automática para que salga en el Dashboard ("Renzo vendió...")
+        const noteText = `Venta: $${amount} ${currency}. ${model ? `Modelo: ${model}` : ''} ${notes}`;
         const insertNote = `
             INSERT INTO customer_notes (user_id, customer_id, texto, action_type, created_at)
             VALUES ($1, $2, $3, 'SALE', NOW())
         `;
-        await pool.query(insertNote, [req.user.id, customer_id, `Venta: $${amount} ${currency}. ${notes}`]);
+        await pool.query(insertNote, [req.user.id, customer_id, noteText]);
 
-        // C. Actualizar Stock (si aplica)
+        // C. Actualizar Stock (si aplica, opcional)
         if (sold_unit_id) {
             await pool.query('UPDATE sold_units SET status = $1 WHERE id = $2', ['SOLD', sold_unit_id]);
         }
 
-        res.json({ message: 'Venta registrada' });
+        res.json({ message: 'Venta registrada con éxito' });
     } catch (err) {
-        console.error('Error register-sale:', err);
+        console.error('Error en /sale:', err);
         res.status(500).json({ message: 'Error al registrar venta' });
     }
 });

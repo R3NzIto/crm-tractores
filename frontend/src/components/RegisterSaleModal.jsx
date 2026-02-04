@@ -1,128 +1,201 @@
 import React, { useState, useEffect } from 'react';
+import { getCustomers } from '../api'; // Asegúrate de tener esta función o la que uses para listar clientes
 
 const RegisterSaleModal = ({ isOpen, onClose }) => {
+  const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState([]);
-  const [formData, setFormData] = useState({ customer_id: '', amount: '', currency: 'USD', notes: '' });
+  const [whModels, setWhModels] = useState([]);
 
+  // FORMULARIO DE VENTA
+  const [formData, setFormData] = useState({
+    customerId: '',
+    amount: '',
+    currency: 'USD',
+    model: '', // Nuevo
+    hp: '',    // Nuevo
+    notes: ''
+  });
+
+  // 1. CARGAR CLIENTES Y MODELOS AL ABRIR
   useEffect(() => {
     if (isOpen) {
-        fetch(`${import.meta.env.VITE_API_URL}/api/customers`, { 
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        })
-        .then(res => res.json())
-        .then(data => setCustomers(data))
-        .catch(console.error);
+      const token = localStorage.getItem('token');
+      
+      // Cargar Clientes
+      getCustomers(token).then(data => setCustomers(Array.isArray(data) ? data : [])).catch(console.error);
+
+      // Cargar Modelos Wolf Hard
+      fetch(`${import.meta.env.VITE_API_URL}/api/models?brand=Wolf Hard`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(setWhModels)
+      .catch(console.error);
     }
   }, [isOpen]);
 
+  // Generar lista de HP (50-400)
+  const hpOptions = [];
+  for (let i = 50; i <= 400; i += 5) hpOptions.push(i);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.customerId || !formData.amount || !formData.model) {
+        alert("Completa Cliente, Monto y Modelo.");
+        return;
+    }
+
+    setLoading(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/dashboard/register-sale`, {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/dashboard/sale`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify(formData)
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            customer_id: formData.customerId,
+            amount: formData.amount,
+            currency: formData.currency,
+            model: formData.model,
+            hp: formData.hp,
+            notes: formData.notes
+        })
       });
-      if (res.ok) { 
-          // Notificación simple o alert
-          alert('¡Venta Registrada! 💰'); 
-          onClose(); 
-          window.location.reload(); 
+
+      if (response.ok) {
+        alert("¡Venta registrada con éxito! 💰");
+        onClose();
+        window.location.reload(); // Recargar para actualizar gráficos
+      } else {
+        alert("Error al guardar la venta.");
       }
-    } catch  { alert('Error al guardar'); }
+    } catch (err) {
+      console.error(err);
+      alert("Error de conexión.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
 
-  // 🌑 ESTILOS DARK MODE PARA EL MODAL
-  const overlayStyle = {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', // Fondo más oscuro atrás
-    backdropFilter: 'blur(3px)',
-    display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999
-  };
-  
-  const contentStyle = {
-    background: '#1f1f1f', // Tarjeta oscura
-    padding: '30px', 
-    borderRadius: '16px', 
-    width: '90%', 
-    maxWidth: '450px',
-    border: '1px solid #333',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-  };
-
-  // Estilo para los Inputs (Fondo negro, letra blanca)
-  const inputStyle = { 
-    width: '100%', 
-    padding: '12px', 
-    marginBottom: '15px', 
-    borderRadius: '8px', 
-    border: '1px solid #444',
-    background: '#121212', 
-    color: '#fff',
-    fontSize: '0.95rem',
-    outline: 'none'
-  };
-
-  const labelStyle = { display:'block', marginBottom:'8px', color: '#aaa', fontSize: '0.9rem' };
-
   return (
-    <div style={overlayStyle}>
-      <div style={contentStyle}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: '20px'}}>
-            <h2 style={{fontSize: '1.4rem', fontWeight: 'bold', color: '#fff', margin:0}}>💰 Registrar Venta</h2>
+    <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+    }}>
+      <div style={{
+          background: '#1e1e1e', padding: '30px', borderRadius: '12px', 
+          width: '500px', maxWidth: '90%', border: '1px solid #333', color: 'white',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
+      }}>
+        <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
+            <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}>
+                💰 Registrar Venta <span style={{fontSize:'0.8rem', background:'#10B981', padding:'2px 8px', borderRadius:'4px', color:'white'}}>Wolf Hard</span>
+            </h2>
             <button onClick={onClose} style={{background:'none', border:'none', color:'#666', fontSize:'1.5rem', cursor:'pointer'}}>×</button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          
-          <div>
-            <label style={labelStyle}>Cliente</label>
-            <select style={inputStyle} onChange={e => setFormData({...formData, customer_id: e.target.value})} required>
-                <option value="" style={{background:'#121212'}}>Seleccionar Cliente...</option>
-                {customers.map(c => (
-                    <option key={c.id} value={c.id} style={{background:'#121212'}}>{c.name}</option>
-                ))}
-            </select>
-          </div>
-
-          <div style={{display:'flex', gap:'15px'}}>
-             <div style={{flex: 1}}>
-                <label style={labelStyle}>Monto</label>
-                <input type="number" style={inputStyle} placeholder="0.00" onChange={e => setFormData({...formData, amount: e.target.value})} required />
-             </div>
-             <div style={{width: '110px'}}>
-                <label style={labelStyle}>Moneda</label>
-                <select style={inputStyle} onChange={e => setFormData({...formData, currency: e.target.value})}>
-                    <option value="USD">USD 🇺🇸</option>
-                    <option value="ARS">ARS 🇦🇷</option>
+            
+            {/* 1. SELECCIONAR CLIENTE */}
+            <div style={{marginBottom:'15px'}}>
+                <label style={{display:'block', marginBottom:'5px', color:'#aaa', fontSize:'0.9rem'}}>Cliente</label>
+                <select 
+                    style={{width:'100%', padding:'12px', borderRadius:'6px', border:'1px solid #444', background:'#121212', color:'white'}}
+                    value={formData.customerId}
+                    onChange={e => setFormData({...formData, customerId: e.target.value})}
+                >
+                    <option value="">-- Seleccionar Cliente --</option>
+                    {customers.map(c => (
+                        <option key={c.id} value={c.id}>{c.name} ({c.company || 'Particular'})</option>
+                    ))}
                 </select>
-             </div>
-          </div>
+            </div>
 
-          <div>
-            <label style={labelStyle}>Notas / Detalles</label>
-            <textarea style={{...inputStyle, height: '100px', resize:'none'}} placeholder="Escribe detalles..." onChange={e => setFormData({...formData, notes: e.target.value})}></textarea>
-          </div>
-          
-          <div style={{display:'flex', justifyContent:'flex-end', gap:'12px', marginTop: '10px'}}>
-            <button type="button" onClick={onClose} style={{
-                padding: '12px 20px', border:'1px solid #444', background:'transparent', 
-                color:'#aaa', borderRadius:'8px', cursor:'pointer', fontWeight:'600'
-            }}>
-                Cancelar
-            </button>
-            <button type="submit" style={{
-                padding: '12px 24px', border:'none', background:'#10B981', 
-                color:'white', borderRadius:'8px', cursor:'pointer', fontWeight:'bold',
-                boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.39)'
-            }}>
-                Guardar Venta
-            </button>
-          </div>
+            {/* 2. MODELO Y HP (EN UNA FILA) */}
+            <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'15px', marginBottom:'15px'}}>
+                <div>
+                    <label style={{display:'block', marginBottom:'5px', color:'#aaa', fontSize:'0.9rem'}}>Modelo Wolf Hard</label>
+                    <select 
+                        style={{width:'100%', padding:'12px', borderRadius:'6px', border:'1px solid #f0b43a', background:'#2a1c05', color:'#f0b43a', fontWeight:'bold'}}
+                        value={formData.model}
+                        onChange={e => setFormData({...formData, model: e.target.value})}
+                    >
+                        <option value="">-- Seleccionar --</option>
+                        {whModels.map(m => (
+                            <option key={m.id} value={m.model}>{m.model}</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label style={{display:'block', marginBottom:'5px', color:'#aaa', fontSize:'0.9rem'}}>HP</label>
+                    <select 
+                        style={{width:'100%', padding:'12px', borderRadius:'6px', border:'1px solid #444', background:'#121212', color:'white'}}
+                        value={formData.hp}
+                        onChange={e => setFormData({...formData, hp: e.target.value})}
+                    >
+                        <option value="">HP</option>
+                        {hpOptions.map(hp => (
+                            <option key={hp} value={hp}>{hp}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {/* 3. MONTO Y MONEDA */}
+            <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'15px', marginBottom:'15px'}}>
+                <div>
+                    <label style={{display:'block', marginBottom:'5px', color:'#aaa', fontSize:'0.9rem'}}>Monto Venta</label>
+                    <input 
+                        type="number" 
+                        placeholder="0.00"
+                        style={{width:'100%', padding:'12px', borderRadius:'6px', border:'1px solid #444', background:'#121212', color:'white', fontSize:'1.1rem'}}
+                        value={formData.amount}
+                        onChange={e => setFormData({...formData, amount: e.target.value})}
+                    />
+                </div>
+                <div>
+                    <label style={{display:'block', marginBottom:'5px', color:'#aaa', fontSize:'0.9rem'}}>Moneda</label>
+                    <select 
+                        style={{width:'100%', padding:'12px', borderRadius:'6px', border:'1px solid #444', background:'#121212', color:'white'}}
+                        value={formData.currency}
+                        onChange={e => setFormData({...formData, currency: e.target.value})}
+                    >
+                        <option value="USD">USD 💵</option>
+                        <option value="ARS">ARS 🇦🇷</option>
+                    </select>
+                </div>
+            </div>
+
+            {/* 4. NOTAS */}
+            <div style={{marginBottom:'20px'}}>
+                <label style={{display:'block', marginBottom:'5px', color:'#aaa', fontSize:'0.9rem'}}>Notas / Detalles</label>
+                <textarea 
+                    rows="3"
+                    placeholder="Detalles de la operación..."
+                    style={{width:'100%', padding:'12px', borderRadius:'6px', border:'1px solid #444', background:'#121212', color:'white', resize:'none'}}
+                    value={formData.notes}
+                    onChange={e => setFormData({...formData, notes: e.target.value})}
+                />
+            </div>
+
+            <div style={{display:'flex', justifyContent:'flex-end', gap:'10px'}}>
+                <button type="button" onClick={onClose} style={{padding:'10px 20px', borderRadius:'6px', border:'1px solid #444', background:'transparent', color:'#aaa', cursor:'pointer'}}>Cancelar</button>
+                <button 
+                    type="submit" 
+                    disabled={loading}
+                    style={{padding:'10px 25px', borderRadius:'6px', border:'none', background:'#10B981', color:'white', fontWeight:'bold', cursor:'pointer', opacity: loading ? 0.7 : 1}}
+                >
+                    {loading ? "Guardando..." : "Confirmar Venta"}
+                </button>
+            </div>
         </form>
       </div>
     </div>
   );
 };
+
 export default RegisterSaleModal;
