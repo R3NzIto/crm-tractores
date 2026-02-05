@@ -1,18 +1,17 @@
-import React, { useEffect, useState, useCallback } from 'react'; // 1. Importamos useCallback
+import React, { useEffect, useState, useCallback } from 'react';
 import { getSalesHistory, deleteSale } from '../api';
 
-const SalesHistory = () => {
+// 👇 Recibimos una nueva prop: onSaleDeleted
+const SalesHistory = ({ onSaleDeleted }) => {
   const [sales, setSales] = useState([]);
   const token = localStorage.getItem('token');
 
-  // 2. Usamos useCallback para definir loadData de forma estable
   const loadData = useCallback(() => {
     getSalesHistory(token)
       .then(data => setSales(Array.isArray(data) ? data : []))
       .catch(console.error);
-  }, [token]); // Solo se recrea si cambia el token
+  }, [token]); 
 
-  // 3. Ahora podemos añadir loadData a las dependencias sin problemas
   useEffect(() => { 
     loadData(); 
   }, [loadData]);
@@ -21,7 +20,13 @@ const SalesHistory = () => {
     if (!window.confirm("⚠️ ¿Estás seguro de ELIMINAR esta venta?\nSe borrará del registro financiero.")) return;
     try {
         await deleteSale(token, id);
-        loadData(); // Recargar tabla
+        loadData(); // 1. Recargar la tabla
+        
+        // 👇 2. AVISAR AL PADRE PARA QUE ACTUALICE LOS GRÁFICOS
+        if (onSaleDeleted) {
+            onSaleDeleted();
+        }
+        
     } catch  {
         alert("Error al eliminar");
     }
