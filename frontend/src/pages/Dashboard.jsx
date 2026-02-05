@@ -182,7 +182,7 @@ function Dashboard() {
 
                     {item.latitude && (
                       <a 
-                        href={`http://googleusercontent.com/maps.google.com/3{item.latitude},${item.longitude}`}
+                        href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
                         target="_blank"
                         rel="noreferrer"
                         className="tag"
