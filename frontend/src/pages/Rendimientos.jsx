@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// 👇 IMPORTAMOS LOS NUEVOS COMPONENTES
+// 👇 1. IMPORTAMOS LOS NUEVOS COMPONENTES
 import TopModelsChart from '../components/TopModelsChart';
 import SalesHistory from '../components/SalesHistory';
 
@@ -10,6 +10,7 @@ const Rendimientos = () => {
   const [range, setRange] = useState('year'); 
   const [loading, setLoading] = useState(true);
 
+  // Función para cambiar entre Mes y Año
   const handleRangeChange = (newRange) => {
     if (newRange !== range) {
       setLoading(true); 
@@ -17,6 +18,7 @@ const Rendimientos = () => {
     }
   };
 
+  // Carga de datos principales del Dashboard
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
@@ -38,6 +40,7 @@ const Rendimientos = () => {
     return () => { isMounted = false; };
   }, [range]); 
 
+  // --- ESTILOS ---
   const pageStyle = { padding: '20px', maxWidth: '1400px', margin: '0 auto', color: 'white' };
   
   const cardStyle = {
@@ -99,10 +102,10 @@ const Rendimientos = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
         
         {/* --- GRÁFICO 2: TOP MODELOS (NUEVO) --- */}
-        {/* Reemplaza al de distribución de esfuerzo */}
+        {/* 👇 Aquí es donde reemplazamos el gráfico viejo por el nuevo */}
         <TopModelsChart />
 
-        {/* --- TABLA: RANKING --- */}
+        {/* --- TABLA: RANKING VENDEDORES --- */}
         <div style={cardStyle}>
             <h3 style={titleStyle}>🏆 Top Vendedores</h3>
             <div style={{overflowX:'auto'}}>
@@ -138,6 +141,7 @@ const Rendimientos = () => {
       </div>
 
       {/* --- SECCIÓN INFERIOR: HISTORIAL DE VENTAS (NUEVO) --- */}
+      {/* 👇 Aquí agregamos la tabla de historial y borrado */}
       <SalesHistory />
 
     </div>
