@@ -5,9 +5,9 @@ import {
   logoutAndRedirect 
 } from "../api";
 
-// IMPORTAMOS LOS COMPONENTES (Que ya pusiste en Dark Mode)
+// IMPORTAMOS LOS COMPONENTES (Solo los necesarios)
 import StatsSection from "../components/StatsSection";
-import DailyChart from "../components/DailyChart";
+// ❌ DailyChart eliminado para evitar errores
 
 const timeAgo = (dateString) => {
   const date = new Date(dateString);
@@ -109,8 +109,7 @@ function Dashboard() {
         {/* --- COLUMNA IZQUIERDA --- */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* GRÁFICO DIARIO (Ya está en Dark Mode) */}
-          <DailyChart />
+          {/* ❌ GRÁFICO DIARIO ELIMINADO AQUI */}
 
           {/* AGENDA RÁPIDA (Solo empleados) - AHORA DARK MODE */}
           {!isJefe && (
@@ -155,7 +154,6 @@ function Dashboard() {
                   {/* ICONO CON FONDO OSCURO PERO COLORIDO */}
                   <div style={{ 
                     width: '40px', height: '40px', borderRadius: '50%', 
-                    // Fondos translúcidos para que brillen en lo oscuro
                     background: item.action_type === 'VISIT' ? 'rgba(16, 185, 129, 0.15)' : item.action_type === 'CALL' ? 'rgba(59, 130, 246, 0.15)' : item.action_type === 'SALE' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.1)', 
                     color: item.action_type === 'VISIT' ? '#10b981' : item.action_type === 'CALL' ? '#3b82f6' : item.action_type === 'SALE' ? '#f59e0b' : '#9ca3af',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem',
@@ -184,7 +182,7 @@ function Dashboard() {
 
                     {item.latitude && (
                       <a 
-                        href={`https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`}
+                        href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
                         target="_blank"
                         rel="noreferrer"
                         className="tag"
