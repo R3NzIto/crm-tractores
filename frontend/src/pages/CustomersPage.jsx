@@ -19,7 +19,7 @@ import {
   createCustomerUnit,
   updateCustomerUnit,
   deleteCustomerUnit,
-  deleteCustomersBatch // 👈 NUEVO IMPORT
+  deleteCustomersBatch
 } from "../api";
 
 import icon from "leaflet/dist/images/marker-icon.png";
@@ -52,9 +52,8 @@ function CustomersPage() {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   
-  // 👇 NUEVO ESTADO PARA SELECCIÓN MÚLTIPLE
+  // Selección múltiple
   const [selectedIds, setSelectedIds] = useState([]);
-
   const [openMenuId, setOpenMenuId] = useState(null);
 
   // --- NOTAS Y ACCIONES ---
@@ -71,7 +70,6 @@ function CustomersPage() {
   const [unitsCustomer, setUnitsCustomer] = useState(null);
   const [units, setUnits] = useState([]);
   
-  // Listas maestras
   const [allTractorModels, setAllTractorModels] = useState([]); 
   const [tractorBrands, setTractorBrands] = useState([]); 
   const [filteredModels, setFilteredModels] = useState([]); 
@@ -114,7 +112,7 @@ function CustomersPage() {
     setError(err?.message || "No pudimos completar la operacion");
   };
 
-  // 1️⃣ CARGAR TODAS LAS MARCAS Y MODELOS
+  // 1. Carga Inicial de Modelos
   useEffect(() => {
     fetch(`${API_URL}/api/models`) 
       .then(res => res.json())
@@ -128,7 +126,7 @@ function CustomersPage() {
       .catch(err => console.error("Error cargando modelos:", err));
   }, []);
 
-  // --- FILTROS ---
+  // 2. Filtro de Clientes (useMemo) - Aquí estaba el error de duplicado
   const filteredCustomers = useMemo(() => {
     const q = search.trim().toLowerCase();
     return customers.filter((c) => {
@@ -140,8 +138,7 @@ function CustomersPage() {
     });
   }, [customers, filters, search]);
 
-  // --- 👇 LÓGICA DE SELECCIÓN MÚLTIPLE ---
-  
+  // --- LÓGICA DE SELECCIÓN MÚLTIPLE ---
   const handleSelectOne = (id) => {
     if (selectedIds.includes(id)) {
       setSelectedIds(selectedIds.filter(itemId => itemId !== id));
@@ -166,15 +163,16 @@ function CustomersPage() {
     setLoading(true);
     try {
       await deleteCustomersBatch(token, selectedIds);
-      setSelectedIds([]); // Limpiar selección
-      await loadCustomers(true); // Recargar lista
+      setSelectedIds([]); 
+      await loadCustomers(); // Recarga sin filtros para actualizar la lista
     } catch (err) {
       handleApiError(err);
     } finally {
       setLoading(false);
     }
   };
-  // ------------------------------------
+
+  // --- HANDLERS DE FORMULARIOS ---
 
   const handleBrandChange = (e) => {
     const selectedBrand = e.target.value;
@@ -192,11 +190,14 @@ function CustomersPage() {
     }
   };
 
+  // Función loadCustomers CORREGIDA para no borrar la lista al actualizar
   const loadCustomers = useCallback(async ( machineFilter = "") => {
     setLoading(true);
     setError("");
     try {
-      const data = await getCustomers(token, { machine: machineFilter, type: 'CLIENT' });
+      // Si machineFilter es booleano (true/false), lo ignoramos y usamos string vacio
+      const filter = typeof machineFilter === 'string' ? machineFilter : "";
+      const data = await getCustomers(token, { machine: filter, type: 'CLIENT' });
       setCustomers(Array.isArray(data) ? data : []);
     } catch (err) {
       handleApiError(err);
@@ -206,7 +207,7 @@ function CustomersPage() {
   }, [token]);
 
   const handleMachineSearch = () => {
-    loadCustomers(true, machineSearch);
+    loadCustomers(machineSearch);
   };
 
   const loadUsers = useCallback(async () => {
@@ -389,6 +390,7 @@ function CustomersPage() {
     } 
   };
   
+  // 3. Inicialización
   useEffect(() => { 
     if (!token) { logoutAndRedirect("/"); return; } 
     loadCustomers(); 
@@ -409,7 +411,7 @@ function CustomersPage() {
       
       setForm({ name: "", email: "", phone: "", company: "", localidad: "", sector: "", assigned_to: "" }); 
       setEditingId(null); 
-      await loadCustomers(true);
+      await loadCustomers(); // Recargar lista
     } catch (err) { handleApiError(err); }
   };
 
@@ -417,7 +419,7 @@ function CustomersPage() {
     if (!window.confirm("¿Eliminar cliente?")) return; 
     try { 
       await deleteCustomer(token, id); 
-      await loadCustomers(true); 
+      await loadCustomers(); // Recargar lista
     } catch (err) { handleApiError(err); } 
   };
 
@@ -448,7 +450,7 @@ function CustomersPage() {
       setOpenMenuId(null); 
     } catch (err) { 
       handleApiError(err); 
-      loadCustomers(true);
+      loadCustomers(); // Recargar lista
     } 
   };
 
@@ -459,7 +461,7 @@ function CustomersPage() {
     setImporting(true); 
     try { 
       await importCustomers(token, f); 
-      await loadCustomers(true); 
+      await loadCustomers(); // Recargar lista
     } catch (err) { handleApiError(err); } 
     finally { setImporting(false); e.target.value = ""; } 
   };
@@ -490,7 +492,7 @@ function CustomersPage() {
         <span className="tag">{customerCounts.total} Clientes</span>
       </div>
 
-      {/* --- FORMULARIO DE CLIENTES --- */}
+      {/* --- FORMULARIO DE CLIENTES (ARRIBA) --- */}
       <div className="card" style={{ marginBottom: 14 }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ margin: "0 0 8px" }}>{editingId ? "Editar Cliente" : "Nuevo Cliente"}</h3>
         {!canSubmit && <p className="muted" style={{marginTop:0}}>Tu rol no permite crear/editar clientes.</p>}
@@ -518,12 +520,12 @@ function CustomersPage() {
            <div style={{display:'flex', gap:5}}>
              <input type="text" placeholder="🔍 Buscar por Maquinaria..." value={machineSearch} onChange={(e) => setMachineSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleMachineSearch()} style={{ width: 280, borderColor: '#f0b43a' }} />
              <button className="btn" style={{background:'#f0b43a', color:'#000'}} onClick={handleMachineSearch}>Buscar</button>
-             {machineSearch && <button className="btn secondary" onClick={() => {setMachineSearch(""); loadCustomers(true, "");}}>X</button>}
+             {machineSearch && <button className="btn secondary" onClick={() => {setMachineSearch(""); loadCustomers("");}}>X</button>}
            </div>
         </div>
 
         <div className="toolbar" style={{gap:8, flexWrap:'wrap', alignItems:'center'}}>
-           {/* 👇 BOTÓN DE BORRADO MASIVO */}
+           {/* BOTÓN DE BORRADO MASIVO */}
            {selectedIds.length > 0 && (
              <button 
                className="btn danger" 
@@ -544,7 +546,7 @@ function CustomersPage() {
           <table>
             <thead>
               <tr>
-                {/* 👇 CHECKBOX SELECT ALL */}
+                {/* CHECKBOX SELECT ALL */}
                 <th style={{width: 40, textAlign:'center'}}>
                   <input 
                     type="checkbox" 
@@ -559,7 +561,7 @@ function CustomersPage() {
             <tbody>
               {filteredCustomers.map(c => (
                 <tr key={c.id} style={{background: selectedIds.includes(c.id) ? 'rgba(240, 180, 58, 0.1)' : 'transparent'}}>
-                  {/* 👇 CHECKBOX INDIVIDUAL */}
+                  {/* CHECKBOX INDIVIDUAL */}
                   <td style={{textAlign:'center'}}>
                     <input 
                       type="checkbox" 
@@ -596,7 +598,7 @@ function CustomersPage() {
           </table>
         </div>
 
-        {/* --- CENTRO DE UNIDADES (PARQUE DE MAQUINARIA) --- */}
+        {/* --- CENTRO DE UNIDADES --- */}
         {unitsCustomer && (
            <div className="card" style={{ marginTop: 20, border: '1px solid #f0b43a' }} onClick={(e) => e.stopPropagation()}>
              <div className="card-header" style={{ marginBottom: 10 }}>
@@ -606,7 +608,6 @@ function CustomersPage() {
 
             <form onSubmit={submitUnit} className="form-grid compact" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))'}}>
               
-              {/* SELECTOR DE ORIGEN */}
               <div style={{gridColumn: '1 / -1', display: 'flex', gap: '20px', marginBottom: '5px', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '5px'}}>
                 <label style={{display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize:'0.9rem'}}>
                     <input type="radio" name="origin" value="TERCEROS" checked={unitForm.origin === 'TERCEROS'} onChange={() => handleOriginChange('TERCEROS')} />
@@ -618,12 +619,9 @@ function CustomersPage() {
                 </label>
               </div>
 
-              {/* CAMPOS DE MARCA Y MODELO (DINÁMICOS) */}
               {unitForm.origin === 'WOLF_HARD' ? (
                 <>
-                    {/* SI ES WOLF HARD: Marca bloqueada, Modelo Select */}
                     <input type="text" value="Wolf Hard" disabled style={{borderColor: '#f0b43a', color: '#f0b43a', fontWeight: 'bold'}} />
-                    
                     <select value={unitForm.model} onChange={e => setUnitForm({...unitForm, model: e.target.value})} required style={{borderColor: '#f0b43a'}}>
                         <option value="">-- Seleccionar Modelo --</option>
                         {wolfHardModels.map((m) => <option key={m.id} value={m.model}>{m.model}</option>)}
@@ -631,7 +629,6 @@ function CustomersPage() {
                 </>
               ) : (
                 <>
-                    {/* SI ES TERCEROS: SELECTORES DE LA BASE DE DATOS */}
                     <select value={unitForm.brand} onChange={handleBrandChange} required>
                         <option value="">-- Marca --</option>
                         {tractorBrands.map((b, i) => <option key={i} value={b}>{b}</option>)}
@@ -645,45 +642,30 @@ function CustomersPage() {
               )}
 
               <input type="number" placeholder="Año" value={unitForm.year} onChange={e => setUnitForm({...unitForm, year: e.target.value})} />
-              
-              {/* SELECTOR DE HP (50 a 400) */}
               <select value={unitForm.hp} onChange={e => setUnitForm({...unitForm, hp: e.target.value})}>
                 <option value="">-- Potencia (HP) --</option>
                 {HP_OPTIONS.map(hp => (
                     <option key={hp} value={hp}>{hp} HP</option>
                 ))}
               </select>
-              
               <input type="number" placeholder="Horas de Uso ⏱️" value={unitForm.hours} onChange={e => setUnitForm({...unitForm, hours: e.target.value})} style={{borderColor: '#f0b43a'}} />
 
-              <textarea 
-                placeholder="Comentarios sobre el estado (ej: Cubiertas al 50%, motor reparado...)" 
-                value={unitForm.comments} 
-                onChange={e => setUnitForm({...unitForm, comments: e.target.value})} 
-                style={{gridColumn: '1 / -1', minHeight: '60px', resize: 'vertical'}}
-              />
+              <textarea placeholder="Comentarios..." value={unitForm.comments} onChange={e => setUnitForm({...unitForm, comments: e.target.value})} style={{gridColumn: '1 / -1', minHeight: '60px', resize: 'vertical'}} />
               
-              {/* SECCIÓN DE SERVICE: SOLO APARECE SI ES WOLF HARD */}
               {unitForm.origin === 'WOLF_HARD' && (
                 <div style={{gridColumn: '1 / -1', background:'rgba(240, 180, 58, 0.1)', border: '1px dashed #f0b43a', padding:10, borderRadius:6, marginTop:5}}>
-                    <label style={{display:'block', fontSize:'0.9rem', color:'#f0b43a', marginBottom:'8px'}}>
-                      🛠️ Service / Mantenimiento Oficial
-                    </label>
-                    
+                    <label style={{display:'block', fontSize:'0.9rem', color:'#f0b43a', marginBottom:'8px'}}>🛠️ Service / Mantenimiento Oficial</label>
                     <div style={{display:'flex', gap:10, marginBottom:10}}>
                       <input type="date" value={newIntervention.date} onChange={e => setNewIntervention({...newIntervention, date: e.target.value})} style={{width:'150px'}} />
-                      <input type="text" placeholder="Detalle (ej: Service 500hs)" value={newIntervention.text} onChange={e => setNewIntervention({...newIntervention, text: e.target.value})} style={{flex:1}} />
+                      <input type="text" placeholder="Detalle" value={newIntervention.text} onChange={e => setNewIntervention({...newIntervention, text: e.target.value})} style={{flex:1}} />
                       <button type="button" className="btn secondary" onClick={addToHistory} style={{whiteSpace:'nowrap'}}>Agregar (+)</button>
                     </div>
-
-                    <textarea placeholder="Historial de servicios..." value={unitForm.interventions} onChange={e => setUnitForm({...unitForm, interventions: e.target.value})} style={{width:'100%', minHeight: '80px', fontFamily:'monospace', fontSize:'0.85rem'}} />
+                    <textarea placeholder="Historial..." value={unitForm.interventions} onChange={e => setUnitForm({...unitForm, interventions: e.target.value})} style={{width:'100%', minHeight: '80px', fontFamily:'monospace', fontSize:'0.85rem'}} />
                 </div>
               )}
 
               <div className="toolbar" style={{gridColumn: '1 / -1'}}>
-                 <button className="btn" style={{background: '#f0b43a', color:'#000'}} type="submit" disabled={unitsLoading}>
-                   {unitsLoading ? "Guardando..." : (editingUnitId ? "💾 Guardar Cambios" : "➕ Agregar Unidad")}
-                 </button>
+                 <button className="btn" style={{background: '#f0b43a', color:'#000'}} type="submit" disabled={unitsLoading}>{unitsLoading ? "Guardando..." : (editingUnitId ? "💾 Guardar" : "➕ Agregar")}</button>
                  {editingUnitId && <button className="btn secondary" type="button" onClick={cancelEditUnit}>Cancelar Edición</button>}
               </div>
             </form>
@@ -692,39 +674,20 @@ function CustomersPage() {
                {units.length === 0 ? <p className="muted">Sin unidades registradas.</p> : (
                  <div style={{display:'grid', gap:'10px'}}>
                     {units.map(unit => (
-                      <div key={unit.id} style={{
-                        background: unit.origin === 'WOLF_HARD' ? 'rgba(240, 180, 58, 0.15)' : 'rgba(255,255,255,0.05)',
-                        borderLeft: unit.origin === 'WOLF_HARD' ? '4px solid #f0b43a' : '4px solid #666',
-                        padding: '10px 15px', borderRadius:'6px', display:'flex', flexDirection:'column', gap:'5px'
-                      }}>
+                      <div key={unit.id} style={{background: unit.origin === 'WOLF_HARD' ? 'rgba(240, 180, 58, 0.15)' : 'rgba(255,255,255,0.05)', borderLeft: unit.origin === 'WOLF_HARD' ? '4px solid #f0b43a' : '4px solid #666', padding: '10px 15px', borderRadius:'6px', display:'flex', flexDirection:'column', gap:'5px'}}>
                           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                              <div>
-                                <div style={{fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px', color: unit.origin === 'WOLF_HARD' ? '#f0b43a' : '#888'}}>
-                                   {unit.origin === 'WOLF_HARD' ? '⭐ Wolf Hard' : '🏢 Terceros'}
-                                </div>
-                                <strong style={{fontSize:'1.1rem', color:'white'}}>
-                                    {unit.brand} <span style={{color: '#f0b43a'}}>{unit.model}</span>
-                                </strong>
-                                <span className="muted small" style={{marginLeft: 10}}>
-                                   {unit.year ? `Año ${unit.year}` : ''} {unit.hp ? `• ${unit.hp} HP` : ''} 
-                                   {unit.hours ? ` • ⏱️ ${unit.hours} hs` : ''}
-                                </span>
+                                <div style={{fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px', color: unit.origin === 'WOLF_HARD' ? '#f0b43a' : '#888'}}>{unit.origin === 'WOLF_HARD' ? '⭐ Wolf Hard' : '🏢 Terceros'}</div>
+                                <strong style={{fontSize:'1.1rem', color:'white'}}>{unit.brand} <span style={{color: '#f0b43a'}}>{unit.model}</span></strong>
+                                <span className="muted small" style={{marginLeft: 10}}>{unit.year ? `Año ${unit.year}` : ''} {unit.hp ? `• ${unit.hp} HP` : ''} {unit.hours ? ` • ⏱️ ${unit.hours} hs` : ''}</span>
                              </div>
                              <div style={{display:'flex', gap:5}}>
                                 <button className="btn secondary" style={{padding: '5px 10px'}} onClick={() => startEditUnit(unit)}>✏️</button>
                                 <button className="btn danger" style={{padding: '5px 10px'}} onClick={() => handleDeleteUnit(unit.id)}>X</button>
                              </div>
                           </div>
-                          
                           {unit.comments && <div style={{fontSize:'0.9rem', color:'#bbb', fontStyle:'italic'}}>"{unit.comments}"</div>}
-                          
-                          {/* HISTORIAL: SOLO SI ES WOLF HARD */}
-                          {unit.origin === 'WOLF_HARD' && unit.interventions && (
-                            <div style={{marginTop: 5, padding: '8px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
-                              <strong style={{display:'block', fontSize:'0.75rem', color:'#f0b43a', marginBottom:2}}>HISTORIAL OFICIAL:</strong>
-                              <div style={{whiteSpace: 'pre-wrap', fontSize:'0.85rem', fontFamily:'monospace'}}>{unit.interventions}</div>
-                            </div>
-                          )}
+                          {unit.origin === 'WOLF_HARD' && unit.interventions && (<div style={{marginTop: 5, padding: '8px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}><strong style={{display:'block', fontSize:'0.75rem', color:'#f0b43a', marginBottom:2}}>HISTORIAL OFICIAL:</strong><div style={{whiteSpace: 'pre-wrap', fontSize:'0.85rem', fontFamily:'monospace'}}>{unit.interventions}</div></div>)}
                       </div>
                     ))}
                  </div>
@@ -733,7 +696,7 @@ function CustomersPage() {
            </div>
         )}
 
-        {/* --- PANEL DE NOTAS Y VISITAS (SIN CAMBIOS) --- */}
+        {/* --- PANEL DE NOTAS --- */}
         {notesCustomer && (
           <div className="card" style={{ marginTop: 20, border: '1px solid var(--primary)' }} onClick={(e) => e.stopPropagation()}>
             <div className="card-header">
