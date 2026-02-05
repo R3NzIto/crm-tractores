@@ -213,6 +213,13 @@ export async function deleteAgenda(token, id) {
 }
 
 // --- DASHBOARD ---
+export const getDailyPerformance = async (token) => {
+  const response = await fetch(`${API_URL}/api/dashboard/daily-performance`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Error cargando gráfico");
+  return await response.json();
+};
 
 export const getDashboardActivity = async (token) => {
   const response = await fetch(`${API_URL}/api/dashboard/activity`, {

@@ -5,9 +5,9 @@ import {
   logoutAndRedirect 
 } from "../api";
 
-// IMPORTAMOS LOS COMPONENTES (Solo los necesarios)
+// IMPORTAMOS LOS COMPONENTES
 import StatsSection from "../components/StatsSection";
-// ❌ DailyChart eliminado para evitar errores
+import DashboardChart from "../components/DashboardChart"; // 👈 IMPORTAMOS EL NUEVO GRÁFICO
 
 const timeAgo = (dateString) => {
   const date = new Date(dateString);
@@ -109,9 +109,10 @@ function Dashboard() {
         {/* --- COLUMNA IZQUIERDA --- */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* ❌ GRÁFICO DIARIO ELIMINADO AQUI */}
+          {/* ✅ GRÁFICO DIARIO (Restaurado) */}
+          <DashboardChart />
 
-          {/* AGENDA RÁPIDA (Solo empleados) - AHORA DARK MODE */}
+          {/* AGENDA RÁPIDA (Solo empleados) */}
           {!isJefe && (
             <div className="card" style={cardStyle}>
               <div className="card-header" style={{ marginBottom: '15px', paddingBottom:'10px', borderBottom:'1px solid #333' }}>
@@ -136,7 +137,7 @@ function Dashboard() {
           )}
         </div>
 
-        {/* --- COLUMNA DERECHA: ACTIVIDAD RECIENTE (48HS) - AHORA DARK MODE --- */}
+        {/* --- COLUMNA DERECHA: ACTIVIDAD RECIENTE (48HS) --- */}
         <div className="card" style={{ ...cardStyle, height: 'fit-content' }}>
           <div className="card-header" style={{ marginBottom: '15px', borderBottom: '1px solid #333', paddingBottom: '10px' }}>
             <h3 style={titleStyle}>📡 Actividad Reciente (48h)</h3>
@@ -151,7 +152,7 @@ function Dashboard() {
               {activity.map((item) => (
                 <div key={item.id} style={{ display: 'flex', gap: '15px', marginBottom: '15px', paddingBottom: '15px', borderBottom: '1px solid #333' }}>
                   
-                  {/* ICONO CON FONDO OSCURO PERO COLORIDO */}
+                  {/* ICONO */}
                   <div style={{ 
                     width: '40px', height: '40px', borderRadius: '50%', 
                     background: item.action_type === 'VISIT' ? 'rgba(16, 185, 129, 0.15)' : item.action_type === 'CALL' ? 'rgba(59, 130, 246, 0.15)' : item.action_type === 'SALE' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.1)', 
@@ -175,14 +176,13 @@ function Dashboard() {
                       <strong style={{ color: '#fff' }}>{item.customer_name}</strong>
                     </div>
                     
-                    {/* Texto de la nota con fondo oscuro suave */}
                     <p style={{ margin: '6px 0 0', fontSize: '0.85rem', color: '#9ca3af', fontStyle: 'italic', background: '#121212', padding: '8px', borderRadius: '6px', border: '1px solid #333' }}>
                       "{item.texto}"
                     </p>
 
                     {item.latitude && (
                       <a 
-                        href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                        href={`http://googleusercontent.com/maps.google.com/3{item.latitude},${item.longitude}`}
                         target="_blank"
                         rel="noreferrer"
                         className="tag"
