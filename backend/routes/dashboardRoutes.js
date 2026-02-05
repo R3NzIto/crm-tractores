@@ -143,4 +143,80 @@ router.post('/sale', authMiddleware, async (req, res) => {
     }
 });
 
+// --- NUEVAS RUTAS PARA GESTIÓN DE VENTAS ---
+
+// 5. OBTENER HISTORIAL DE VENTAS (Para la tabla de eliminación)
+router.get('/sales-history', authMiddleware, async (req, res) => {
+  try {
+    const isBoss = ['admin', 'manager', 'jefe'].includes(req.user.role);
+    let query = `
+      SELECT s.id, s.amount, s.currency, s.sale_date, s.model, s.hp, s.notes,
+             c.name as customer_name,
+             u.name as user_name
+      FROM sales_records s
+      JOIN customers c ON s.customer_id = c.id
+      JOIN users u ON s.user_id = u.id
+    `;
+    
+    const params = [];
+    if (!isBoss) {
+      query += ` WHERE s.user_id = $1`;
+      params.push(req.user.id);
+    }
+
+    query += ` ORDER BY s.sale_date DESC LIMIT 50`; // Traemos las últimas 50
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error cargando historial' });
+  }
+});
+
+// 6. ELIMINAR VENTA (Cancelar)
+router.delete('/sale/:id', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Verificamos permisos antes de borrar
+    const isBoss = ['admin', 'manager', 'jefe'].includes(req.user.role);
+    let checkQuery = 'SELECT * FROM sales_records WHERE id = $1';
+    let checkParams = [id];
+
+    if (!isBoss) {
+        checkQuery += ' AND user_id = $2';
+        checkParams.push(req.user.id);
+    }
+
+    const check = await pool.query(checkQuery, checkParams);
+    if (check.rows.length === 0) {
+        return res.status(403).json({ message: 'No puedes eliminar esta venta o no existe' });
+    }
+
+    // Borramos
+    await pool.query('DELETE FROM sales_records WHERE id = $1', [id]);
+    res.json({ message: 'Venta eliminada correctamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al eliminar venta' });
+  }
+});
+
+// 7. DATOS PARA NUEVO GRÁFICO (Top Modelos)
+router.get('/sales-by-model', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT model, COUNT(*) as count 
+      FROM sales_records 
+      WHERE model IS NOT NULL 
+      GROUP BY model 
+      ORDER BY count DESC 
+      LIMIT 5
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error en grafico modelos' });
+  }
+});
 module.exports = router;

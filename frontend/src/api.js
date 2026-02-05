@@ -232,6 +232,29 @@ export const getDashboardStats = async (token) => {
   return data;
 };
 
+
+export const getSalesHistory = async (token) => {
+  const response = await fetch(`${API_URL}/api/dashboard/sales-history`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return await response.json();
+};
+
+export const deleteSale = async (token, id) => {
+  const response = await fetch(`${API_URL}/api/dashboard/sale/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Error al eliminar venta");
+};
+
+export const getSalesByModel = async (token) => {
+  const response = await fetch(`${API_URL}/api/dashboard/sales-by-model`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return await response.json();
+};
+
 // --- UNIDADES / MAQUINARIA ---
 
 export const getCustomerUnits = async (token, customerId) => {
