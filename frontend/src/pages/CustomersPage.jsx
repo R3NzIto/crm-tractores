@@ -36,14 +36,19 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const MANAGER_ROLES = ["admin", "manager"];
-const formatDateTime = (value) => (value ? new Date(value).toLocaleString('es-AR', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit'
-}) : "Sin fecha");
+const formatDateTime = (value) => {
+  if (!value) return "Sin fecha";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "Sin fecha";
+  return d.toLocaleString('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
 
 const HP_OPTIONS = [];
 for (let i = 50; i <= 400; i += 5) {

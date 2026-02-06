@@ -140,14 +140,17 @@ function AgendaPage() {
   const formatStatus = (status) => STATUS_META[status]?.label || status;
 
   const formatDate = (dateString) =>
-    dateString ? new Date(dateString).toLocaleString('es-AR', {
+    if (!dateString) return "Sin fecha";
+    const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return "Sin fecha";
+    return d.toLocaleString('es-AR', {
       timeZone: 'America/Argentina/Buenos_Aires',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-    }) : "Sin fecha";
+    });
 
   return (
     <div className="page agenda-page">
