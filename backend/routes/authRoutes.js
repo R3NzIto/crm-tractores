@@ -116,9 +116,10 @@ router.post('/login', async (req, res) => {
   if (error) return res.status(400).json({ message: 'Datos invalidos' });
 
   const { email, password } = value;
+  const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
     const user = result.rows[0];
 
     if (!user) {
@@ -156,10 +157,11 @@ router.post('/register', async (req, res) => {
 
   const { name, email, password, role } = value;
   const dbRole = mapRoleForDb(role);
+  const normalizedEmail = email.trim().toLowerCase();
 
   try {
     // Verificación manual de duplicados para dar un mensaje claro
-    const checkUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const checkUser = await pool.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
     if (checkUser.rows.length > 0) {
         return res.status(400).json({ message: 'El email ya está registrado' });
     }
@@ -168,7 +170,7 @@ router.post('/register', async (req, res) => {
 
     const result = await pool.query(
       'INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role',
-      [name, email, hashed, dbRole]
+      [name, normalizedEmail, hashed, dbRole]
     );
 
     const user = result.rows[0];

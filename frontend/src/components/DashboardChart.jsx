@@ -13,9 +13,10 @@ const DashboardChart = () => {
         const processed = {};
         raw.forEach(item => {
             if (!item.day) return;
-            const d = new Date(item.day); // item.day ya es ISO completo
-            if (Number.isNaN(d.getTime())) return;
-            const dateKey = d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' });
+            // item.day viene como "YYYY-MM-DDTHH:mm:ssZ". Para evitar corrimientos de huso,
+            // tomamos solo la parte de fecha y armamos DD/MM sin crear un Date().
+            const [year, month, day] = item.day.substring(0, 10).split('-');
+            const dateKey = `${day}/${month}`;
             if (!processed[dateKey]) processed[dateKey] = { name: dateKey, CALL: 0, VISIT: 0, SALE: 0 };
             processed[dateKey][item.action_type] = parseInt(item.count, 10);
         });
