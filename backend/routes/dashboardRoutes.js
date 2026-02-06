@@ -141,7 +141,8 @@ router.get('/sales-history', authMiddleware, async (req, res) => {
     let query = `
       SELECT s.id, s.amount, s.currency, s.sale_date, s.model, s.hp, s.notes,
              c.name as customer_name,
-             u.name as user_name
+             u.name as user_name,
+             s.customer_id 
       FROM sales_records s
       JOIN customers c ON s.customer_id = c.id
       JOIN users u ON s.user_id = u.id
@@ -244,4 +245,4 @@ router.get('/sales-by-model', authMiddleware, async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = router;x
