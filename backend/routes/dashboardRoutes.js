@@ -141,8 +141,7 @@ router.get('/sales-history', authMiddleware, async (req, res) => {
     let query = `
       SELECT s.id, s.amount, s.currency, s.sale_date, s.model, s.hp, s.notes,
              c.name as customer_name,
-             u.name as user_name,
-             s.customer_id 
+             u.name as user_name, s.customer_id
       FROM sales_records s
       JOIN customers c ON s.customer_id = c.id
       JOIN users u ON s.user_id = u.id
@@ -164,17 +163,14 @@ router.get('/sales-history', authMiddleware, async (req, res) => {
   }
 });
 
-// 👇👇 6. ELIMINAR VENTA (CORREGIDO: BORRA TODO) 👇👇
+// 6. ELIMINAR VENTA (BORRADO COMPLETO)
 router.delete('/sale/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
-  
-  // Usamos un cliente dedicado para hacer una transacción segura
-  const client = await pool.connect();
+  const client = await pool.connect(); 
 
   try {
-    await client.query('BEGIN'); // Iniciar transacción
+    await client.query('BEGIN');
 
-    // 1. Verificar permisos y obtener datos de la venta ANTES de borrarla
     const isBoss = ['admin', 'manager', 'jefe'].includes(req.user.role);
     let checkQuery = 'SELECT * FROM sales_records WHERE id = $1';
     let checkParams = [id];
@@ -193,41 +189,35 @@ router.delete('/sale/:id', authMiddleware, async (req, res) => {
 
     const saleToDelete = check.rows[0];
 
-    // 2. Borrar la Venta Financiera (Tabla sales_records)
+    // 1. Borrar dinero
     await client.query('DELETE FROM sales_records WHERE id = $1', [id]);
 
-    // 3. Borrar la Nota Automática del Dashboard (Tabla customer_notes)
-    // Buscamos una nota que sea del mismo cliente, tipo SALE y que contenga el monto
-    // Así nos aseguramos de borrar la nota correcta del muro.
+    // 2. Borrar nota del muro
     await client.query(`
         DELETE FROM customer_notes
         WHERE id = (
             SELECT id FROM customer_notes
             WHERE customer_id = $1
             AND action_type = 'SALE'
-            AND texto LIKE $2 -- Busca que el texto contenga el monto
-            ORDER BY created_at DESC -- Borra la más reciente que coincida
+            AND texto LIKE $2 
+            ORDER BY created_at DESC
             LIMIT 1
         )
-    `, [
-        saleToDelete.customer_id, 
-        `%${saleToDelete.amount}%` // El patrón busca el monto dentro del texto
-    ]);
+    `, [saleToDelete.customer_id, `%${saleToDelete.amount}%`]);
 
-    await client.query('COMMIT'); // Confirmar cambios
-    res.json({ message: 'Venta y actividad eliminadas correctamente' });
+    await client.query('COMMIT');
+    res.json({ message: 'Venta eliminada' });
 
   } catch (err) {
-    await client.query('ROLLBACK'); // Si algo falla, deshacer todo
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ message: 'Error al eliminar venta' });
   } finally {
-    client.release(); // Liberar cliente
+    client.release();
   }
 });
-// 👆👆 FIN DE LA CORRECCIÓN 👆👆
 
-// 7. DATOS PARA NUEVO GRÁFICO (Top Modelos)
+// 7. DATOS PARA NUEVO GRÁFICO
 router.get('/sales-by-model', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -245,4 +235,4 @@ router.get('/sales-by-model', authMiddleware, async (req, res) => {
   }
 });
 
-module.exports = router;x
+module.exports = router;
