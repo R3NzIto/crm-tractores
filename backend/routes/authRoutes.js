@@ -10,7 +10,7 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const TOKEN_EXPIRATION = process.env.JWT_EXPIRES_IN || '2h';
-const COOKIE_SECURE = process.env.NODE_ENV === 'production';
+const IS_PROD = process.env.NODE_ENV === 'production';
 const COOKIE_NAME = 'token';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
@@ -74,8 +74,8 @@ const resetSchema = Joi.object({
 function sendAuthResponse(res, user, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: COOKIE_SECURE,
-    sameSite: 'lax',
+    secure: IS_PROD,                  // en prod requiere https para SameSite=None
+    sameSite: IS_PROD ? 'none' : 'lax',
     maxAge: 1000 * 60 * 60 * 2, // 2h
   });
 
