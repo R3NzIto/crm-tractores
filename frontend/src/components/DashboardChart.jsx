@@ -12,7 +12,7 @@ const DashboardChart = () => {
       .then((raw) => {
         const processed = {};
         raw.forEach(item => {
-            const dateKey = new Date(item.day).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+            const dateKey = new Date(item.day + 'T00:00:00Z').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' });
             if (!processed[dateKey]) processed[dateKey] = { name: dateKey, CALL: 0, VISIT: 0, SALE: 0 };
             processed[dateKey][item.action_type] = parseInt(item.count, 10);
         });
