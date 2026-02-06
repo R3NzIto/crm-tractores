@@ -13,7 +13,7 @@ const DashboardChart = () => {
         const processed = {};
         raw.forEach(item => {
             if (!item.day) return;
-            const d = new Date(item.day + 'T00:00:00Z');
+            const d = new Date(item.day); // item.day ya es ISO completo
             if (Number.isNaN(d.getTime())) return;
             const dateKey = d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' });
             if (!processed[dateKey]) processed[dateKey] = { name: dateKey, CALL: 0, VISIT: 0, SALE: 0 };
