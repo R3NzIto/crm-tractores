@@ -163,7 +163,7 @@ router.get('/sales-history', authMiddleware, async (req, res) => {
   }
 });
 
-// 6. ELIMINAR VENTA (BORRADO COMPLETO)
+// 👇👇 6. ELIMINAR VENTA (CORREGIDO PARA DECIMALES Y FALLBACK) 👇👇
 router.delete('/sale/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect(); 
@@ -171,6 +171,7 @@ router.delete('/sale/:id', authMiddleware, async (req, res) => {
   try {
     await client.query('BEGIN');
 
+    // 1. Obtener datos de la venta ANTES de borrarla
     const isBoss = ['admin', 'manager', 'jefe'].includes(req.user.role);
     let checkQuery = 'SELECT * FROM sales_records WHERE id = $1';
     let checkParams = [id];
@@ -189,11 +190,15 @@ router.delete('/sale/:id', authMiddleware, async (req, res) => {
 
     const saleToDelete = check.rows[0];
 
-    // 1. Borrar dinero
+    // 2. Borrar la Venta Financiera
     await client.query('DELETE FROM sales_records WHERE id = $1', [id]);
 
-    // 2. Borrar nota del muro
-    await client.query(`
+    // 3. Borrar la Nota Automática del Dashboard
+    // TRUCO: Convertimos el monto a entero para evitar problemas con ".00"
+    const amountInt = parseInt(saleToDelete.amount); 
+    
+    // INTENTO 1: Buscar por monto exacto (texto)
+    let deleteNoteResult = await client.query(`
         DELETE FROM customer_notes
         WHERE id = (
             SELECT id FROM customer_notes
@@ -203,10 +208,25 @@ router.delete('/sale/:id', authMiddleware, async (req, res) => {
             ORDER BY created_at DESC
             LIMIT 1
         )
-    `, [saleToDelete.customer_id, `%${saleToDelete.amount}%`]);
+    `, [saleToDelete.customer_id, `%${amountInt}%`]);
+
+    // INTENTO 2 (FAIL-SAFE): Si no borró nada (porque el texto era diferente), 
+    // borramos la ÚLTIMA venta de ese cliente sin mirar el texto.
+    if (deleteNoteResult.rowCount === 0) {
+        await client.query(`
+            DELETE FROM customer_notes
+            WHERE id = (
+                SELECT id FROM customer_notes
+                WHERE customer_id = $1
+                AND action_type = 'SALE'
+                ORDER BY created_at DESC
+                LIMIT 1
+            )
+        `, [saleToDelete.customer_id]);
+    }
 
     await client.query('COMMIT');
-    res.json({ message: 'Venta eliminada' });
+    res.json({ message: 'Venta eliminada correctamente' });
 
   } catch (err) {
     await client.query('ROLLBACK');
@@ -216,6 +236,7 @@ router.delete('/sale/:id', authMiddleware, async (req, res) => {
     client.release();
   }
 });
+// 👆👆 FIN DE LA CORRECCIÓN 👆👆
 
 // 7. DATOS PARA NUEVO GRÁFICO
 router.get('/sales-by-model', authMiddleware, async (req, res) => {
