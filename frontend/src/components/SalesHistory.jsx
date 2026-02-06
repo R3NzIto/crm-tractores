@@ -4,13 +4,12 @@ import { getSalesHistory, deleteSale } from '../api';
 // 👇 Recibimos una nueva prop: onSaleDeleted
 const SalesHistory = ({ onSaleDeleted }) => {
   const [sales, setSales] = useState([]);
-  const token = localStorage.getItem('token');
 
   const loadData = useCallback(() => {
-    getSalesHistory(token)
+    getSalesHistory()
       .then(data => setSales(Array.isArray(data) ? data : []))
       .catch(console.error);
-  }, [token]); 
+  }, []); 
 
   useEffect(() => { 
     loadData(); 
@@ -19,7 +18,7 @@ const SalesHistory = ({ onSaleDeleted }) => {
   const handleDelete = async (id) => {
     if (!window.confirm("⚠️ ¿Estás seguro de ELIMINAR esta venta?\nSe borrará del registro financiero.")) return;
     try {
-        await deleteSale(token, id);
+        await deleteSale(id);
         loadData(); // 1. Recargar la tabla
         
         // 👇 2. AVISAR AL PADRE PARA QUE ACTUALICE LOS GRÁFICOS

@@ -6,7 +6,7 @@ const Joi = require('joi');
 const multer = require('multer');
 const xlsx = require('xlsx');
 
-const canManageAll = (role) => ['admin', 'manager', 'jefe'].includes(role);
+const canManageAll = (role) => ['admin', 'manager'].includes(role);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -20,14 +20,13 @@ const customerSchema = Joi.object({
   email: Joi.string().email().max(150).allow('', null),
   localidad: Joi.string().max(100).allow('', null),
   sector: Joi.string().max(100).allow('', null),
-  assigned_to: Joi.number().integer().allow(null),
-  type: Joi.string().valid('CLIENT', 'POS').allow('', null) 
+  assigned_to: Joi.number().integer().allow(null)
 });
 
 // GET: Listar clientes (Buscador Mejorado)
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const { machine, type } = req.query;
+    const { machine } = req.query;
     
     // Query base limpia
     let sql = `
@@ -41,12 +40,8 @@ router.get('/', authMiddleware, async (req, res) => {
     const params = [];
     let paramIndex = 1;
 
-    // 1. Filtro por TIPO (Cliente o Prospecto)
-    if (type) {
-      sql += ` AND c.type = $${paramIndex} `;
-      params.push(type);
-      paramIndex++;
-    }
+    // Forzar solo clientes
+    sql += ` AND COALESCE(UPPER(c.type),'CLIENT') = 'CLIENT' `;
 
     // 2. Filtro por MAQUINARIA (Marca, Modelo o Comentarios)
     if (machine) {
@@ -84,16 +79,16 @@ router.post('/', authMiddleware, async (req, res) => {
   const { error, value } = customerSchema.validate(req.body);
   
   if (error) {
-    console.log("Error de validación Joi:", error.details[0].message);
+    console.log("Error de validación Joi:", error.details[0].message, "payload:", req.body);
     return res.status(400).json({ message: 'Datos invalidos: ' + error.details[0].message });
   }
 
-  const { name, company, phone, email, localidad, sector, assigned_to, type } = value;
+  const { name, company, phone, email, localidad, sector, assigned_to } = value;
 
   try {
     const result = await pool.query(
       `INSERT INTO customers (name, company, phone, email, localidad, sector, created_by, assigned_to, type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'CLIENT')
        RETURNING *`,
       [
         name,
@@ -103,8 +98,7 @@ router.post('/', authMiddleware, async (req, res) => {
         localidad || null,
         sector || null,
         req.user.id,
-        assigned_to || req.user.id,
-        type || 'CLIENT'
+        assigned_to || req.user.id
       ]
     );
 
@@ -123,7 +117,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
   const { error, value } = customerSchema.validate(req.body);
   if (error) return res.status(400).json({ message: 'Datos invalidos' });
 
-  const { name, company, phone, email, localidad, sector, assigned_to, type } = value;
+  const { name, company, phone, email, localidad, sector, assigned_to } = value;
   const { id } = req.params;
 
   try {
@@ -146,8 +140,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     const result = await pool.query(
       `UPDATE customers
-       SET name = $1, company = $2, phone = $3, email = $4, localidad = $5, sector = $6, assigned_to = $7, type = $8
-       WHERE id = $9
+       SET name = $1, company = $2, phone = $3, email = $4, localidad = $5, sector = $6, assigned_to = $7, type = 'CLIENT'
+       WHERE id = $8
        RETURNING *`,
       [
         name,
@@ -157,7 +151,6 @@ router.put('/:id', authMiddleware, async (req, res) => {
         localidad || null,
         sector || null,
         assignTarget || customer.assigned_to || customer.created_by,
-        type || customer.type || 'CLIENT',
         id,
       ]
     );
@@ -186,10 +179,31 @@ router.delete('/:id', authMiddleware, async (req, res) => {
       return res.status(403).json({ message: 'No tienes permisos' });
     }
 
+    // Validamos dependencias antes de intentar borrar
+    const deps = await pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM sales_records WHERE customer_id = $1) AS sales_count,
+         (SELECT COUNT(*) FROM sold_units    WHERE customer_id = $1) AS units_count,
+         (SELECT COUNT(*) FROM customer_notes WHERE customer_id = $1) AS notes_count
+       `,
+      [id]
+    );
+    const { sales_count, units_count, notes_count } = deps.rows[0];
+    const totalRefs = Number(sales_count) + Number(units_count) + Number(notes_count);
+    if (totalRefs > 0) {
+      return res.status(400).json({
+        message: `No se puede eliminar: tiene ${sales_count} ventas, ${units_count} unidades y ${notes_count} notas asociadas. Borra o reasigna esos registros primero.`,
+      });
+    }
+
     await pool.query('DELETE FROM customers WHERE id = $1', [id]);
     res.status(204).send();
   } catch (error) {
     console.error('Error al eliminar cliente:', error);
+    if (error.code === '23503') {
+      // Restricción de clave foránea: hay ventas/unidades/notas asociadas
+      return res.status(400).json({ message: 'No se puede eliminar: tiene registros asociados (ventas/unidades/notas).' });
+    }
     res.status(500).json({ message: 'Error de servidor' });
   }
 });
@@ -206,7 +220,7 @@ router.post('/delete-batch', authMiddleware, async (req, res) => {
     let query = 'DELETE FROM customers WHERE id = ANY($1)';
     const params = [ids];
 
-    // SEGURIDAD: Si no es jefe, solo puede borrar los que él creó
+    // SEGURIDAD: Si no es admin/manager, solo puede borrar los que él creó
     if (!canManageAll(req.user.role)) {
        query += ' AND created_by = $2';
        params.push(req.user.id);
@@ -221,7 +235,7 @@ router.post('/delete-batch', authMiddleware, async (req, res) => {
   }
 });
 
-// IMPORT
+// IMPORT con deduplicación básica (email/phone)
 router.post('/import', authMiddleware, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No se envio archivo' });
 
@@ -240,6 +254,9 @@ router.post('/import', authMiddleware, upload.single('file'), async (req, res) =
     if (rows.length > 1200) return res.status(400).json({ message: 'Limite 1200 filas' });
 
     const normalizeKey = (key) => key.toString().trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+    const phoneRegex = /^[0-9()+\-\s]{6,}$/;
+
     const parsed = rows.map((row) => {
         const entries = Object.entries(row).reduce((acc, [k, v]) => {
           acc[normalizeKey(k)] = typeof v === 'string' ? v.trim() : v;
@@ -258,18 +275,57 @@ router.post('/import', authMiddleware, upload.single('file'), async (req, res) =
     if (!parsed.length) return res.status(400).json({ message: 'Faltan nombres en el archivo' });
 
     const client = await pool.connect();
+    let inserted = 0;
+    let skipped = 0;
+    const duplicates = [];
+    const invalids = [];
 
     try {
       await client.query('BEGIN');
       for (const row of parsed) {
+         // validaciones de formato
+         if (row.email && !emailRegex.test(row.email)) {
+           invalids.push({ email: row.email, reason: 'email' });
+           skipped++;
+           continue;
+         }
+         if (row.phone && !phoneRegex.test(row.phone)) {
+           invalids.push({ phone: row.phone, reason: 'phone' });
+           skipped++;
+           continue;
+         }
+
+         // dedupe por email o phone (si vienen)
+         const dedupeRes = await client.query(
+           `SELECT id FROM customers WHERE 
+              (email IS NOT NULL AND email <> '' AND email = $1)
+              OR (phone IS NOT NULL AND phone <> '' AND phone = $2)
+            LIMIT 1`,
+            [row.email || null, row.phone || null]
+         );
+         if (dedupeRes.rowCount > 0) {
+           skipped++;
+           if (duplicates.length < 20) {
+             duplicates.push({ email: row.email || null, phone: row.phone || null });
+           }
+           continue;
+         }
          await client.query(
            `INSERT INTO customers (name, company, phone, email, localidad, sector, created_by, assigned_to, type)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'CLIENT')`,
-           [row.name, row.company, row.phone, row.email, row.localidad, row.sector, req.user.id, req.user.id]
+           [row.name, row.company || null, row.phone || null, row.email || null, row.localidad || null, row.sector || null, req.user.id, req.user.id]
          );
+         inserted++;
       }
       await client.query('COMMIT');
-      res.json({ message: 'Importación exitosa', total: parsed.length });
+      res.json({ 
+        message: 'Importación procesada', 
+        total: parsed.length, 
+        insertados: inserted, 
+        omitidos: skipped,
+        duplicados: duplicates,
+        invalidos: invalids 
+      });
     } catch (err) {
       await client.query('ROLLBACK');
       console.error(err);

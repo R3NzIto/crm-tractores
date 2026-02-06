@@ -25,7 +25,7 @@ import {
 import icon from "leaflet/dist/images/marker-icon.png";
 import iconShadow from "leaflet/dist/images/marker-shadow.png";
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://wolfhard-backend.onrender.com';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/$/, '');
 
 let DefaultIcon = L.icon({
   iconUrl: icon,
@@ -35,7 +35,7 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-const MANAGER_ROLES = ["admin", "manager", "jefe"];
+const MANAGER_ROLES = ["admin", "manager"];
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString() : "Sin fecha");
 
 const HP_OPTIONS = [];
@@ -84,7 +84,8 @@ function CustomersPage() {
     comments: "",   
     interventions: "", 
     intervention_date: "",
-    origin: "TERCEROS" 
+    origin: "TERCEROS",
+    status: "EN_USO"
   });
   
   const [newIntervention, setNewIntervention] = useState({ date: "", text: "" });
@@ -95,7 +96,6 @@ function CustomersPage() {
   const [machineSearch, setMachineSearch] = useState(""); 
   const [filters, setFilters] = useState({ localidad: "", sector: "", assigned: "" });
   
-  const token = localStorage.getItem("token");
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
   const isManager = MANAGER_ROLES.includes(user?.role);
@@ -162,7 +162,7 @@ function CustomersPage() {
     
     setLoading(true);
     try {
-      await deleteCustomersBatch(token, selectedIds);
+      await deleteCustomersBatch(selectedIds);
       setSelectedIds([]); 
       await loadCustomers(); // Recarga sin filtros para actualizar la lista
     } catch (err) {
@@ -197,14 +197,14 @@ function CustomersPage() {
     try {
       // Si machineFilter es booleano (true/false), lo ignoramos y usamos string vacio
       const filter = typeof machineFilter === 'string' ? machineFilter : "";
-      const data = await getCustomers(token, { machine: filter, type: 'CLIENT' });
+      const data = await getCustomers({ machine: filter });
       setCustomers(Array.isArray(data) ? data : []);
     } catch (err) {
       handleApiError(err);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   const handleMachineSearch = () => {
     loadCustomers(machineSearch);
@@ -213,13 +213,18 @@ function CustomersPage() {
   const loadUsers = useCallback(async () => {
     if (!isManager) return;
     try {
-      const data = await getUsers(token);
+      const data = await getUsers(null);
       setUsers(Array.isArray(data) ? data : []);
     } catch (error) { console.error("Error users", error); }
-  }, [token, isManager]);
+  }, [isManager]);
 
   const loadNotes = async (customer) => {
-    if (!customer) return;
+    if (!customer || customer.id === undefined || customer.id === null) return;
+    const cid = Number(customer.id);
+    if (Number.isNaN(cid)) {
+      console.warn('loadNotes: customer id inválido', customer);
+      return;
+    }
     setUnitsCustomer(null); 
     setNotesCustomer(customer);
     setNotesLoading(true);
@@ -228,7 +233,7 @@ function CustomersPage() {
     setLocation(null);
     setOpenMenuId(null); 
     try {
-      const data = await getCustomerNotes(token, customer.id);
+      const data = await getCustomerNotes(cid);
       setNotes(Array.isArray(data) ? data : []);
     } catch (err) {
       setNoteError(err?.message || "No pudimos cargar acciones");
@@ -247,7 +252,7 @@ function CustomersPage() {
     setNewIntervention({ date: "", text: "" });
     setOpenMenuId(null); 
     try {
-      const data = await getCustomerUnits(token, customer.id);
+      const data = await getCustomerUnits(customer.id);
       setUnits(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
@@ -312,12 +317,24 @@ function CustomersPage() {
     
     setUnitsLoading(true); 
     try {
+      const payload = {
+        ...unitForm,
+        year: unitForm.year ? Number(unitForm.year) : null,
+        hp: unitForm.hp ? Number(unitForm.hp) : null,
+        hours: unitForm.hours ? Number(unitForm.hours) : 0,
+        status: unitForm.status || 'EN_USO',
+        intervention_date: unitForm.intervention_date ? unitForm.intervention_date : null,
+      };
+      if (Number.isNaN(payload.year)) payload.year = null;
+      if (Number.isNaN(payload.hp)) payload.hp = null;
+      if (Number.isNaN(payload.hours)) payload.hours = 0;
+
       if (editingUnitId) {
-        await updateCustomerUnit(token, unitsCustomer.id, editingUnitId, unitForm);
+        await updateCustomerUnit(unitsCustomer.id, editingUnitId, payload);
       } else {
-        await createCustomerUnit(token, unitsCustomer.id, unitForm);
+        await createCustomerUnit(unitsCustomer.id, payload);
       }
-      setUnitForm({ brand: "", model: "", year: "", hp: "", hours: "", comments: "", interventions: "", intervention_date: "", origin: "TERCEROS" });
+      setUnitForm({ brand: "", model: "", year: "", hp: "", hours: "", comments: "", interventions: "", intervention_date: "", origin: "TERCEROS", status: "EN_USO" });
       setNewIntervention({ date: "", text: "" });
       setEditingUnitId(null);
       await loadUnits(unitsCustomer);
@@ -332,7 +349,7 @@ function CustomersPage() {
   const handleDeleteUnit = async (unitId) => {
     if (!window.confirm("¿Eliminar esta unidad?")) return;
     try {
-      await deleteCustomerUnit(token, unitsCustomer.id, unitId);
+      await deleteCustomerUnit(unitsCustomer.id, unitId);
       await loadUnits(unitsCustomer);
     } catch (err) {
       console.error(err);
@@ -363,7 +380,7 @@ function CustomersPage() {
     if (!noteForm.texto.trim()) { setNoteError("Debes escribir detalles"); return; }
     if (actionType === 'VISIT' && !location) { setNoteError("⚠️ Esperando GPS..."); return; }
     try {
-      await createCustomerNote(token, notesCustomer.id, {
+      await createCustomerNote(notesCustomer.id, {
         texto: noteForm.texto, 
         proximos_pasos: noteForm.proximos_pasos,
         latitude: actionType === 'VISIT' ? location?.lat : null,
@@ -382,7 +399,7 @@ function CustomersPage() {
   const handleDeleteNote = async (nid) => { 
     if (!window.confirm("¿Eliminar?")) return; 
     try { 
-      await deleteCustomerNote(token, notesCustomer.id, nid); 
+      await deleteCustomerNote(notesCustomer.id, nid); 
       await loadNotes(notesCustomer); 
     } catch (err) { 
       console.error(err);
@@ -392,22 +409,21 @@ function CustomersPage() {
   
   // 3. Inicialización
   useEffect(() => { 
-    if (!token) { logoutAndRedirect("/"); return; } 
     loadCustomers(); 
     loadUsers(); 
-  }, [token, loadCustomers, loadUsers]);
+  }, [loadCustomers, loadUsers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault(); 
     setError(""); 
     if (!form.name.trim()) { setError("Nombre obligatorio"); return; }
     try {
-      const payload = { ...form, type: 'CLIENT' };
+      const payload = { ...form };
       if (!isManager) delete payload.assigned_to;
       else if (!payload.assigned_to) payload.assigned_to = user?.id;
       
-      if (editingId) await updateCustomer(token, editingId, payload); 
-      else await createCustomer(token, payload);
+      if (editingId) await updateCustomer(editingId, payload); 
+      else await createCustomer(payload);
       
       setForm({ name: "", email: "", phone: "", company: "", localidad: "", sector: "", assigned_to: "" }); 
       setEditingId(null); 
@@ -418,7 +434,7 @@ function CustomersPage() {
   const handleDelete = async (id) => { 
     if (!window.confirm("¿Eliminar cliente?")) return; 
     try { 
-      await deleteCustomer(token, id); 
+      await deleteCustomer(id); 
       await loadCustomers(); // Recargar lista
     } catch (err) { handleApiError(err); } 
   };
@@ -440,7 +456,7 @@ function CustomersPage() {
 
   const handleAssign = async (cId, uId) => { 
     try { 
-      await assignCustomer(token, cId, uId); 
+      await assignCustomer(cId, uId); 
       setCustomers(prevCustomers => prevCustomers.map(customer => {
         if (customer.id === cId) {
           return { ...customer, assigned_to: uId ? parseInt(uId) : null };
@@ -460,7 +476,7 @@ function CustomersPage() {
     setError(""); 
     setImporting(true); 
     try { 
-      await importCustomers(token, f); 
+      await importCustomers(null, f); 
       await loadCustomers(); // Recargar lista
     } catch (err) { handleApiError(err); } 
     finally { setImporting(false); e.target.value = ""; } 
@@ -517,9 +533,16 @@ function CustomersPage() {
       <div className="card" onClick={(e) => e.stopPropagation()}>
         <div className="page-header" style={{ marginBottom: 6 }}>
            <h3 style={{margin:0}}>Listado</h3>
-           <div style={{display:'flex', gap:5}}>
-             <input type="text" placeholder="🔍 Buscar por Maquinaria..." value={machineSearch} onChange={(e) => setMachineSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleMachineSearch()} style={{ width: 280, borderColor: '#f0b43a' }} />
-             <button className="btn" style={{background:'#f0b43a', color:'#000'}} onClick={handleMachineSearch}>Buscar</button>
+           <div className="machine-search">
+             <input 
+               className="machine-search__input"
+               type="text" 
+               placeholder="🔍 Buscar por Maquinaria..." 
+               value={machineSearch} 
+               onChange={(e) => setMachineSearch(e.target.value)} 
+               onKeyDown={(e) => e.key === 'Enter' && handleMachineSearch()} 
+             />
+             <button className="btn machine-search__btn" style={{background:'#f0b43a', color:'#000'}} onClick={handleMachineSearch}>Buscar</button>
              {machineSearch && <button className="btn secondary" onClick={() => {setMachineSearch(""); loadCustomers("");}}>X</button>}
            </div>
         </div>

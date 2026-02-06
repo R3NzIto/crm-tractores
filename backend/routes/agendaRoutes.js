@@ -5,7 +5,7 @@ const pool = require('../db');
 const { authMiddleware } = require('../middleware/authMiddleware');
 const Joi = require('joi');
 
-const canManageAll = (role) => ['admin', 'manager', 'jefe'].includes(role);
+const canManageAll = (role) => ['admin', 'manager'].includes(role);
 
 const agendaSchema = Joi.object({
   title: Joi.string().min(2).max(150).required(),

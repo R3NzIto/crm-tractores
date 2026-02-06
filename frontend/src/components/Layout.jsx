@@ -10,8 +10,8 @@ const Layout = () => {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   
-  // Verificamos si es jefe para mostrar opciones extra
-  const isJefe = user?.role === 'jefe' || user?.role === 'admin' || user?.role === 'manager'; 
+  // Roles con privilegios elevados
+  const isJefe = user?.role === 'admin' || user?.role === 'manager'; 
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
@@ -47,7 +47,7 @@ const Layout = () => {
               </Link>
             </li>
             
-            {/* 👇 NUEVA SECCIÓN: RENDIMIENTOS (Solo Jefes) */}
+            {/* 👇 NUEVA SECCIÓN: RENDIMIENTOS (Solo roles con permiso) */}
             {isJefe && (
               <li>
                 <Link to="/analytics" className={`nav-link ${isActive("/analytics")}`} onClick={closeSidebar}>
@@ -98,48 +98,30 @@ const Layout = () => {
             <h2 className="page-title">CRM Corporativo</h2>
           </div>
           
-          {/* 👇 AQUÍ ESTÁ EL ARREGLO VISUAL (Espacio y Botón Grande) */}
-          <div className="navbar-right" style={{ display: 'flex', alignItems: 'center', gap: '25px' }}>
-            
-            <button 
-                onClick={() => setIsSaleModalOpen(true)}
-                style={{
-                    backgroundColor: '#10B981', // Verde éxito
-                    color: 'white', 
-                    border: 'none', 
-                    padding: '10px 20px', 
-                    borderRadius: '8px', 
-                    cursor: 'pointer', 
-                    fontWeight: 'bold',
-                    fontSize: '0.95rem',
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    boxShadow: '0 4px 6px rgba(16, 185, 129, 0.25)', // Sombrita elegante
-                    transition: 'transform 0.1s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >
-                <span>💰</span> <span>Nueva Venta</span>
-            </button>
-
-            {/* Separador vertical sutil */}
-            <div style={{ height: '30px', width: '1px', background: '#333' }}></div>
-
-            <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{textAlign: 'right', lineHeight: '1.2'}}>
-                <span className="user-name" style={{display: 'block', fontWeight: 'bold'}}>{user.name?.split(" ")[0] || "Usuario"}</span>
-                <span className="user-role badge" style={{fontSize: '0.75rem', opacity: 0.8}}>{user.role || "Emp"}</span>
-              </div>
-              {/* Avatar circular simple con la inicial */}
-              <div style={{
-                  width: '40px', height: '40px', borderRadius: '50%', 
-                  background: '#333', color: 'white', display: 'flex', 
-                  alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
-              }}>
-                  {user.name ? user.name[0].toUpperCase() : "U"}
+          <div className="navbar-actions">
+            <div className="navbar-right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{textAlign: 'right', lineHeight: '1.2'}}>
+                  <span className="user-name" style={{display: 'block', fontWeight: 'bold'}}>{user.name?.split(" ")[0] || "Usuario"}</span>
+                  <span className="user-role badge" style={{fontSize: '0.75rem', opacity: 0.8}}>{user.role || "Emp"}</span>
+                </div>
+                <div style={{
+                    width: '40px', height: '40px', borderRadius: '50%', 
+                    background: '#333', color: 'white', display: 'flex', 
+                    alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+                }}>
+                    {user.name ? user.name[0].toUpperCase() : "U"}
+                </div>
               </div>
             </div>
 
+            <button 
+              className="btn floating-sale-btn"
+              onClick={() => setIsSaleModalOpen(true)}
+              aria-label="Nueva Venta"
+            >
+              💰 Venta
+            </button>
           </div>
         </header>
 

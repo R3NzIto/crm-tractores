@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Bree+Serif&family=Montserrat:wght@400;600;700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Manrope:wght@400;500;600;700&display=swap');
 
 :root {
   --bg: #0f0c0d;
@@ -16,7 +16,9 @@
   --info: #4aa3ff;
   --success: #3ac779;
   --card-shadow: 0 18px 60px rgba(0, 0, 0, 0.48);
-  font-family: "Montserrat", "Segoe UI", Tahoma, sans-serif;
+  --heading-font: 'Playfair Display', serif;
+  --body-font: 'Manrope', "Segoe UI", Tahoma, sans-serif;
+  font-family: var(--body-font);
   line-height: 1.5;
   font-weight: 400;
   color: var(--text);
@@ -29,7 +31,7 @@
 h1,
 h2,
 h3 {
-  font-family: "Bree Serif", "Times New Roman", serif;
+  font-family: var(--heading-font);
   letter-spacing: 0.2px;
 }
 

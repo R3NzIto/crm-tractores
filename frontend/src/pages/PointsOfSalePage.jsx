@@ -1,12 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import "leaflet/dist/leaflet.css";
 import {
-  createCustomer, deleteCustomer, getCustomers, getUsers, updateCustomer,
-  getCustomerUnits, createCustomerUnit, updateCustomerUnit, deleteCustomerUnit,
+  getPos, createPos, updatePos, deletePos,
+  getUsers,
+  getPosUnits, createPosUnit, updatePosUnit, deletePosUnit,
   logoutAndRedirect
 } from "../api";
 
-const MANAGER_ROLES = ["admin", "manager", "jefe"];
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+const HP_OPTIONS = Array.from({length: (400-50)/5 +1}, (_,i)=>50+i*5);
+
+const MANAGER_ROLES = ["admin", "manager"];
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-");
 
 function PointsOfSalePage() {
@@ -24,23 +28,23 @@ function PointsOfSalePage() {
   // UNIDADES
   const [unitsCustomer, setUnitsCustomer] = useState(null);
   const [units, setUnits] = useState([]);
-  const [unitForm, setUnitForm] = useState({ model: "", year: "", hp: "", accessories: "", sale_date: "", status: "CONSIGNED" });
+  const [unitForm, setUnitForm] = useState({ brand: "Wolf Hard", model: "", year: "", hp: "", accessories: "", sale_date: "", status: "EN_USO", origin: "WOLF_HARD" });
+  const [wolfHardModels, setWolfHardModels] = useState([]);
   
   // VARIABLE QUE DABA ERROR: AHORA LA USAREMOS
   const [unitsLoading, setUnitsLoading] = useState(false);
   const [editingUnitId, setEditingUnitId] = useState(null);
 
-  const token = localStorage.getItem("token");
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
   const isManager = MANAGER_ROLES.includes(user?.role);
 
-  // CARGAR SOLO PUNTOS DE VENTA (type='POS')
+  // CARGAR SOLO PUNTOS DE VENTA (nueva tabla POS)
   const loadPOS = useCallback(async () => {
     setLoading(true);
     setError(""); // Limpiamos errores al cargar
     try {
-      const data = await getCustomers(token, { type: 'POS' });
+      const data = await getPos();
       setCustomers(Array.isArray(data) ? data : []);
     } catch (err) { 
       console.error(err);
@@ -48,17 +52,17 @@ function PointsOfSalePage() {
     } finally { 
       setLoading(false); 
     }
-  }, [token]);
+  }, []);
 
   const loadUsers = useCallback(async () => {
     if (!isManager) return;
-    try { const data = await getUsers(token); setUsers(Array.isArray(data) ? data : []); } catch (e) { console.error(e); }
-  }, [token, isManager]);
+    try { const data = await getUsers(null); setUsers(Array.isArray(data) ? data : []); } catch (e) { console.error(e); }
+  }, [isManager]);
 
   useEffect(() => { 
-    if (!token) { logoutAndRedirect("/"); return; } 
     loadPOS(); loadUsers(); 
-  }, [token, loadPOS, loadUsers]);
+    fetch(`${API_URL}/api/models?brand=Wolf Hard`).then(r=>r.json()).then(setWolfHardModels).catch(console.error);
+  }, [loadPOS, loadUsers]);
 
   // CREAR / EDITAR PUNTO DE VENTA
   const handleSubmit = async (e) => {
@@ -66,11 +70,14 @@ function PointsOfSalePage() {
     setError("");
     setLoading(true); // Bloqueamos botón
     try {
-      const payload = { ...form, type: 'POS' };
-      if (!isManager) delete payload.assigned_to;
-      
-      if (editingId) await updateCustomer(token, editingId, payload);
-      else await createCustomer(token, payload);
+      const payload = { 
+        ...form,
+        assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
+      };
+      if (Number.isNaN(payload.assigned_to)) payload.assigned_to = null;
+      if (!isManager) delete payload.assigned_to; 
+      if (editingId) await updatePos(editingId, payload);
+      else await createPos(payload);
       
       setForm({ name: "", email: "", phone: "", company: "", localidad: "", sector: "", assigned_to: "" });
       setEditingId(null);
@@ -85,7 +92,12 @@ function PointsOfSalePage() {
 
   const handleDelete = async (id) => {
     if (!window.confirm("¿Borrar Punto de Venta?")) return;
-    try { await deleteCustomer(token, id); await loadPOS(); } catch  { alert("Error al borrar"); }
+    try { 
+      await deletePos(id); 
+      await loadPOS(); 
+    } catch (err)  { 
+      alert(err?.message || "Error al borrar"); 
+    }
   };
 
   // --- LOGICA DE UNIDADES ---
@@ -93,7 +105,7 @@ function PointsOfSalePage() {
     setUnitsCustomer(c);
     setUnitsLoading(true);
     try {
-      const data = await getCustomerUnits(token, c.id);
+      const data = await getPosUnits(c.id);
       setUnits(Array.isArray(data) ? data : []);
     } catch (err) { console.error(err); }
     finally { setUnitsLoading(false); }
@@ -104,10 +116,20 @@ function PointsOfSalePage() {
     if (!unitsCustomer) return;
     setUnitsLoading(true); // Bloqueamos botón de unidad
     try {
-      if (editingUnitId) await updateCustomerUnit(token, unitsCustomer.id, editingUnitId, unitForm);
-      else await createCustomerUnit(token, unitsCustomer.id, unitForm);
+      const payload = {
+        ...unitForm,
+        year: unitForm.year ? Number(unitForm.year) : null,
+        hp: unitForm.hp ? Number(unitForm.hp) : null,
+        origin: unitForm.origin || "WOLF_HARD",
+        sale_date: unitForm.sale_date || null,
+      };
+      if (Number.isNaN(payload.year)) payload.year = null;
+      if (Number.isNaN(payload.hp)) payload.hp = null;
+
+      if (editingUnitId) await updatePosUnit(unitsCustomer.id, editingUnitId, payload);
+      else await createPosUnit(unitsCustomer.id, payload);
       
-      setUnitForm({ model: "", year: "", hp: "", accessories: "", sale_date: "", status: "CONSIGNED" });
+      setUnitForm({ brand: "Wolf Hard", model: "", year: "", hp: "", accessories: "", sale_date: "", status: "EN_USO", origin: "WOLF_HARD" });
       setEditingUnitId(null);
       await loadUnits(unitsCustomer);
     } catch  { 
@@ -119,18 +141,18 @@ function PointsOfSalePage() {
 
   const startEditUnit = (u) => {
     setEditingUnitId(u.id);
-    setUnitForm({ model: u.model, year: u.year, hp: u.hp, accessories: u.accessories, sale_date: u.sale_date?.split('T')[0], status: u.status || 'SOLD' });
+    setUnitForm({ brand: u.brand || "Wolf Hard", model: u.model, year: u.year, hp: u.hp, accessories: u.accessories, sale_date: u.sale_date?.split('T')[0] || "", status: u.status || 'SOLD', origin: u.origin || 'WOLF_HARD' });
   };
   
   const handleDeleteUnit = async (uid) => {
     if(!window.confirm("¿Borrar unidad?")) return;
-    try { await deleteCustomerUnit(token, unitsCustomer.id, uid); await loadUnits(unitsCustomer); } catch{ alert("Error"); }
+    try { await deletePosUnit(unitsCustomer.id, uid); await loadUnits(unitsCustomer); } catch{ alert("Error"); }
   };
 
   const filtered = customers.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
 
   const getStock = (uList) => {
-    const consignadas = uList.filter(u => u.status === 'CONSIGNED').length;
+    const consignadas = uList.filter(u => u.status === 'EN_USO').length;
     const vendidas = uList.filter(u => u.status === 'SOLD').length;
     return { consignadas, vendidas };
   };
@@ -203,12 +225,36 @@ function PointsOfSalePage() {
 
                 <form onSubmit={submitUnit} className="form-grid compact" style={{marginTop:15}}>
                     <select value={unitForm.status} onChange={e=>setUnitForm({...unitForm, status:e.target.value})} style={{fontWeight:'bold', color: unitForm.status==='SOLD'?'#27ae60':'#e67e22'}}>
-                        <option value="CONSIGNED">🟠 En Consignación</option>
+                        <option value="EN_USO">🟠 En Consignación</option>
                         <option value="SOLD">🟢 Vendida</option>
                     </select>
-                    <input type="text" placeholder="Modelo" value={unitForm.model} onChange={e=>setUnitForm({...unitForm, model:e.target.value})} required />
+                    
+                    <input type="text" value={unitForm.brand} readOnly style={{background:'#222', color:'#f0b43a', fontWeight:'bold'}} />
+                    <select 
+                      value={unitForm.model} 
+                      onChange={e=>{
+                        const val = e.target.value;
+                        const found = wolfHardModels.find(m => m.model === val);
+                        setUnitForm({
+                          ...unitForm,
+                          model: val,
+                          brand: found?.brand || 'Wolf Hard',
+                          hp: found?.hp || unitForm.hp
+                        });
+                      }} 
+                      required
+                    >
+                        <option value="">-- Seleccionar Modelo Wolf Hard --</option>
+                        {wolfHardModels.map(m => (
+                          <option key={m.id} value={m.model}>{m.model}</option>
+                        ))}
+                    </select>
+
                     <input type="number" placeholder="Año" value={unitForm.year} onChange={e=>setUnitForm({...unitForm, year:e.target.value})} />
-                    <input type="number" placeholder="HP" value={unitForm.hp} onChange={e=>setUnitForm({...unitForm, hp:e.target.value})} />
+                    <select value={unitForm.hp} onChange={e=>setUnitForm({...unitForm, hp:e.target.value})}>
+                      <option value="">HP</option>
+                      {HP_OPTIONS.map(hp => <option key={hp} value={hp}>{hp} HP</option>)}
+                    </select>
                     <input type="date" value={unitForm.sale_date} onChange={e=>setUnitForm({...unitForm, sale_date:e.target.value})} />
                     
                     {/* AQUI USAMOS "unitsLoading" PARA DESHABILITAR EL BOTON */}

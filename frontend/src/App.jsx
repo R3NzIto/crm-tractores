@@ -7,18 +7,14 @@ import Dashboard from "./pages/Dashboard";
 import CustomersPage from "./pages/CustomersPage";
 import AgendaPage from "./pages/AgendaPage";
 import Layout from "./components/Layout"; 
-import { logoutAndRedirect } from "./api";
 import "./App.css";
 import PointsOfSalePage from "./pages/PointsOfSalePage";
 import Rendimientos from "./pages/Rendimientos";
 
 
 function ProtectedRoute({ children }) {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    logoutAndRedirect("/");
-    return <Navigate to="/" replace />;
-  }
+  const user = localStorage.getItem("user");
+  if (!user) return <Navigate to="/" replace />;
   return children;
 }
 

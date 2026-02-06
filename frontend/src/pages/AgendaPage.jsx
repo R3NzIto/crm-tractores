@@ -21,8 +21,6 @@ const STATUS_META = {
 };
 
 function AgendaPage() {
-  const token = localStorage.getItem("token");
-  // const user = ... (Eliminado porque no se usa aquí)
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,23 +47,19 @@ function AgendaPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await getAgenda(token);
+      const data = await getAgenda();
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       handleApiError(err);
     } finally {
       setLoading(false);
     }
-  }, [token]); // Solo se recrea si cambia el token
+  }, []); // Solo se recrea una vez
 
   // ✅ CORRECCIÓN: Agregamos loadItems a las dependencias
   useEffect(() => {
-    if (!token) {
-      logoutAndRedirect("/");
-      return;
-    }
     loadItems();
-  }, [token, loadItems]);
+  }, [loadItems]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -80,9 +74,9 @@ function AgendaPage() {
         scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
       };
       if (editingId) {
-        await updateAgenda(token, editingId, payload);
+        await updateAgenda(editingId, payload);
       } else {
-        await createAgenda(token, payload);
+        await createAgenda(payload);
       }
       setForm({ title: "", description: "", scheduled_at: "", status: "pendiente" });
       setEditingId(null);
@@ -99,7 +93,7 @@ function AgendaPage() {
     const confirmed = window.confirm(`Seguro que quieres eliminar ${label}?`);
     if (!confirmed) return;
     try {
-      await deleteAgenda(token, id);
+      await deleteAgenda(id);
       await loadItems();
     } catch (err) {
       handleApiError(err);

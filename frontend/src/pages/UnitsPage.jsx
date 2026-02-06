@@ -8,16 +8,12 @@ function UnitsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  const token = localStorage.getItem("token");
-
   useEffect(() => {
-    if (!token) { logoutAndRedirect("/"); return; }
-    
-    getAllUnits(token)
+    getAllUnits()
       .then((data) => setUnits(data))
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, []);
 
   // Filtrado por Modelo o por Cliente
   const filteredUnits = units.filter(u => 

@@ -19,14 +19,23 @@ const RegisterSaleModal = ({ isOpen, onClose }) => {
   // 1. CARGAR CLIENTES Y MODELOS AL ABRIR
   useEffect(() => {
     if (isOpen) {
-      const token = localStorage.getItem('token');
-      
       // Cargar Clientes
-      getCustomers(token).then(data => setCustomers(Array.isArray(data) ? data : [])).catch(console.error);
+      getCustomers({ type: 'CLIENT' })
+        .then(data => {
+          const list = Array.isArray(data) ? data : [];
+          // Filtro defensivo: excluimos cualquier registro marcado como POS
+          setCustomers(
+            list
+              .filter(c => (c.type || '').toUpperCase() === 'CLIENT')
+              .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+          );
+        })
+        .catch(console.error);
 
       // Cargar Modelos Wolf Hard
-      fetch(`${import.meta.env.VITE_API_URL}/api/models?brand=Wolf Hard`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
+      fetch(`${BASE_URL}/api/models?brand=Wolf Hard`, {
+        credentials: 'include'
       })
       .then(res => res.json())
       .then(setWhModels)
@@ -47,13 +56,13 @@ const RegisterSaleModal = ({ isOpen, onClose }) => {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/dashboard/sale`, {
+      const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
+      const response = await fetch(`${BASE_URL}/api/dashboard/sale`, {
         method: 'POST',
         headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
             customer_id: formData.customerId,
             amount: formData.amount,

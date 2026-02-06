@@ -4,7 +4,7 @@ const pool = require('../db');
 const { authMiddleware } = require('../middleware/authMiddleware');
 const Joi = require('joi');
 
-const canManageAll = (role) => ['admin', 'manager', 'jefe'].includes(role);
+const canManageAll = (role) => ['admin', 'manager'].includes(role);
 
 // 1. ACTUALIZAMOS ESQUEMA: Agregamos action_type
 const noteSchema = Joi.object({
@@ -31,9 +31,12 @@ const canOperateOnCustomer = async (customerId, user) => {
 };
 
 router.get('/:customerId/notes', authMiddleware, async (req, res) => {
-  const { customerId } = req.params;
+  const customerId = Number.parseInt(req.params.customerId, 10);
+  if (Number.isNaN(customerId)) {
+    return res.status(400).json({ message: 'customerId inválido' });
+  }
   try {
-    const { allowed, notFound } = await canOperateOnCustomer(Number(customerId), req.user);
+    const { allowed, notFound } = await canOperateOnCustomer(customerId, req.user);
     if (notFound) return res.status(404).json({ message: 'Cliente no encontrado' });
     if (!allowed) return res.status(403).json({ message: 'No tienes permisos' });
 
@@ -57,15 +60,16 @@ router.post('/:customerId/notes', authMiddleware, async (req, res) => {
   const { error, value } = noteSchema.validate(req.body);
   if (error) return res.status(400).json({ message: 'Datos invalidos' });
 
-  const { customerId } = req.params;
+  const customerId = Number.parseInt(req.params.customerId, 10);
+  if (Number.isNaN(customerId)) return res.status(400).json({ message: 'customerId inválido' });
   try {
-    const { allowed, notFound } = await canOperateOnCustomer(Number(customerId), req.user);
+    const { allowed, notFound } = await canOperateOnCustomer(customerId, req.user);
     if (notFound) return res.status(404).json({ message: 'Cliente no encontrado' });
     if (!allowed) return res.status(403).json({ message: 'No tienes permisos' });
 
     const result = await pool.query(
-      `INSERT INTO customer_notes (customer_id, user_id, texto, fecha_visita, proximos_pasos, latitude, longitude, action_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO customer_notes (customer_id, user_id, texto, fecha_visita, proximos_pasos, latitude, longitude, action_type, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires')
        RETURNING *`,
       [
         customerId,
@@ -86,9 +90,13 @@ router.post('/:customerId/notes', authMiddleware, async (req, res) => {
 });
 
 router.delete('/:customerId/notes/:noteId', authMiddleware, async (req, res) => {
-  const { customerId, noteId } = req.params;
+  const customerId = Number.parseInt(req.params.customerId, 10);
+  const noteId = Number.parseInt(req.params.noteId, 10);
+  if (Number.isNaN(customerId) || Number.isNaN(noteId)) {
+    return res.status(400).json({ message: 'IDs inválidos' });
+  }
   try {
-    const { allowed, notFound } = await canOperateOnCustomer(Number(customerId), req.user);
+    const { allowed, notFound } = await canOperateOnCustomer(customerId, req.user);
     if (notFound) return res.status(404).json({ message: 'Cliente no encontrado' });
     if (!allowed) return res.status(403).json({ message: 'No tienes permisos' });
 

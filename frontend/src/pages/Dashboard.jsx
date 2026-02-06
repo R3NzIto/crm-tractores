@@ -23,7 +23,6 @@ const timeAgo = (dateString) => {
 
 function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const token = localStorage.getItem("token");
   
   const [activity, setActivity] = useState([]);
   const [myAgenda, setMyAgenda] = useState([]); 
@@ -31,18 +30,17 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const isJefe = ["jefe", "admin", "manager"].includes(user?.role);
+  const isJefe = ["admin", "manager"].includes(user?.role);
 
   useEffect(() => {
     async function load() {
-      if (!token) return;
       try {
         const promises = [
-          getDashboardActivity(token) // Trae últimas 48hs
+          getDashboardActivity() // Trae últimas 48hs
         ];
 
         if (!isJefe) {
-          promises.push(getAgenda(token));
+          promises.push(getAgenda());
         }
 
         const results = await Promise.all(promises);
@@ -65,7 +63,7 @@ function Dashboard() {
       }
     }
     load();
-  }, [token, isJefe]);
+  }, [isJefe]);
 
   // ESTILOS DARK MODE COMUNES 🌑
   const cardStyle = {
@@ -91,10 +89,10 @@ function Dashboard() {
           </p>
         </div>
         <span className="tag" style={{
-            background: isJefe ? '#dc2626' : '#2563eb', // Rojo jefe, Azul empleado
+            background: isJefe ? '#dc2626' : '#2563eb', // Rojo líder, Azul operativo
             color: 'white', padding: '5px 12px', borderRadius: '5px', fontSize: '0.8rem', fontWeight: 'bold'
         }}>
-          {isJefe ? "👑 MODO JEFE" : "👷 MODO OPERATIVO"}
+          {isJefe ? "👑 MODO LÍDER" : "👷 MODO OPERATIVO"}
         </span>
       </div>
 

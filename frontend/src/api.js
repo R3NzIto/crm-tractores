@@ -2,20 +2,19 @@ const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replac
 
 // Función auxiliar para limpiar sesión
 const clearAuthStorage = () => {
-  localStorage.removeItem("token");
+  localStorage.removeItem("token"); // legacy, por si quedó
   localStorage.removeItem("user");
 };
 
 // Función genérica para peticiones
-async function apiFetch(path, { method = "GET", token, body, isFormData = false } = {}) {
+async function apiFetch(path, { method = "GET", body, isFormData = false } = {}) {
   const headers = {};
   if (!isFormData) headers["Content-Type"] = "application/json";
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
-    credentials: "include", // permitir cookie httpOnly
+    credentials: "include", // usamos cookie httpOnly
     body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
 
@@ -28,7 +27,10 @@ async function apiFetch(path, { method = "GET", token, body, isFormData = false 
 
   if (res.status === 401) {
     clearAuthStorage();
-    const error = new Error(data?.message || "Sesion expirada, vuelve a iniciar sesion");
+    // Redirigir a login conservando retorno opcional
+    const redirectTo = "/"; // puedes cambiar a '/login' si tu ruta de login es esa
+    window.location.replace(redirectTo);
+    const error = new Error(data?.message || "Sesión expirada, vuelve a iniciar sesión");
     error.unauthorized = true;
     throw error;
   }
@@ -98,13 +100,13 @@ export function logoutAndRedirect(path = "/") {
 
 // --- CLIENTES ---
 
-export const getCustomers = async (token, { machine = "", type = "" } = {}) => {
+export const getCustomers = async (params = {}) => {
+  const { machine = "", type = "" } = params || {};
   let url = `${API_URL}/api/customers?`;
   if (machine) url += `&machine=${encodeURIComponent(machine)}`;
-  if (type) url += `&type=${encodeURIComponent(type)}`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    credentials: "include",
   });
   if (response.status === 401) throw { unauthorized: true };
   const data = await response.json();
@@ -112,195 +114,136 @@ export const getCustomers = async (token, { machine = "", type = "" } = {}) => {
   return data;
 };
 
-export async function getCustomer(token, id) {
-  return apiFetch(`/api/customers/${id}`, { token });
-}
+export const getCustomer = async (id) => apiFetch(`/api/customers/${id}`);
+export const createCustomer = async (payload) => apiFetch("/api/customers", { method: "POST", body: payload });
+export const updateCustomer = async (id, payload) => apiFetch(`/api/customers/${id}`, { method: "PUT", body: payload });
+export const deleteCustomer = async (id) => apiFetch(`/api/customers/${id}`, { method: "DELETE" });
 
-export async function createCustomer(token, payload) {
-  return apiFetch("/api/customers", {
-    method: "POST",
-    token,
-    body: payload,
-  });
-}
-
-export async function updateCustomer(token, id, payload) {
-  return apiFetch(`/api/customers/${id}`, {
-    method: "PUT",
-    token,
-    body: payload,
-  });
-}
-
-export async function deleteCustomer(token, id) {
-  return apiFetch(`/api/customers/${id}`, {
-    method: "DELETE",
-    token,
-  });
-}
-
-// 👇👇 AQUÍ ESTÁ LA FUNCIÓN NUEVA QUE FALTABA 👇👇
-export async function deleteCustomersBatch(token, ids) {
-  return apiFetch("/api/customers/delete-batch", {
-    method: "POST",
-    token,
-    body: { ids }, 
-  });
-}
+// POS (Puntos de Venta)
+export const getPos = async () => apiFetch("/api/pos");
+export const createPos = async (payload) => apiFetch("/api/pos", { method: "POST", body: payload });
+export const updatePos = async (id, payload) => apiFetch(`/api/pos/${id}`, { method: "PUT", body: payload });
+export const deletePos = async (id) => apiFetch(`/api/pos/${id}`, { method: "DELETE" });
+export const deleteCustomersBatch = async (ids) => apiFetch("/api/customers/delete-batch", { method: "POST", body: { ids } });
 // 👆👆 FIN DE LA FUNCIÓN NUEVA 👆👆
 
-export async function importCustomers(token, file) {
+export async function importCustomers(file) {
   const formData = new FormData();
   formData.append("file", file);
 
   return apiFetch("/api/customers/import", {
     method: "POST",
-    token,
     body: formData,
     isFormData: true,
   });
 }
 
-export async function assignCustomer(token, id, userId) {
+export async function assignCustomer(id, userId) {
   return apiFetch(`/api/customers/${id}/assign`, {
     method: "PATCH",
-    token,
     body: { user_id: userId },
   });
 }
 
 // --- USUARIOS ---
 
-export async function getUsers(token) {
-  return apiFetch("/api/users", { token });
-}
+export const getUsers = async () => apiFetch("/api/users");
 
 // --- NOTAS Y AGENDA ---
 
-export async function getCustomerNotes(token, customerId) {
-  return apiFetch(`/api/customers/${customerId}/notes`, { token });
-}
+export const getCustomerNotes = async (customerId) => {
+  if (customerId === undefined || customerId === null || Number.isNaN(Number(customerId))) {
+    throw new Error("customerId inválido");
+  }
+  const cid = Number(customerId);
+  return apiFetch(`/api/customers/${cid}/notes`);
+};
+export const createCustomerNote = async (customerId, payload) => apiFetch(`/api/customers/${customerId}/notes`, { method: "POST", body: payload });
+export const deleteCustomerNote = async (customerId, noteId) => apiFetch(`/api/customers/${customerId}/notes/${noteId}`, { method: "DELETE" });
 
-export async function createCustomerNote(token, customerId, payload) {
-  return apiFetch(`/api/customers/${customerId}/notes`, {
-    method: "POST",
-    token,
-    body: payload,
-  });
-}
-
-export async function deleteCustomerNote(token, customerId, noteId) {
-  return apiFetch(`/api/customers/${customerId}/notes/${noteId}`, {
-    method: "DELETE",
-    token,
-  });
-}
-
-export async function getAgenda(token) {
-  return apiFetch("/api/agenda", { token });
-}
-
-export async function createAgenda(token, payload) {
-  return apiFetch("/api/agenda", { method: "POST", token, body: payload });
-}
-
-export async function updateAgenda(token, id, payload) {
-  return apiFetch(`/api/agenda/${id}`, { method: "PUT", token, body: payload });
-}
-
-export async function deleteAgenda(token, id) {
-  return apiFetch(`/api/agenda/${id}`, { method: "DELETE", token });
-}
+export const getAgenda = async () => apiFetch("/api/agenda");
+export const createAgenda = async (payload) => apiFetch("/api/agenda", { method: "POST", body: payload });
+export const updateAgenda = async (id, payload) => apiFetch(`/api/agenda/${id}`, { method: "PUT", body: payload });
+export const deleteAgenda = async (id) => apiFetch(`/api/agenda/${id}`, { method: "DELETE" });
 
 // --- DASHBOARD ---
-export const getDailyPerformance = async (token) => {
-  const response = await fetch(`${API_URL}/api/dashboard/daily-performance`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getDailyPerformance = async () => {
+  const response = await fetch(`${API_URL}/api/dashboard/daily-performance`, { credentials: "include" });
   if (!response.ok) throw new Error("Error cargando gráfico");
   return await response.json();
 };
 
-export const getDashboardActivity = async (token) => {
-  const response = await fetch(`${API_URL}/api/dashboard/activity`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getDashboardActivity = async () => {
+  const response = await fetch(`${API_URL}/api/dashboard/activity`, { credentials: "include" });
   const data = await response.json();
   if (!response.ok) throw { message: data.message, status: response.status };
   return data;
 };
 
-export const getDashboardStats = async (token) => {
-  const response = await fetch(`${API_URL}/api/dashboard/stats`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getDashboardStats = async () => {
+  const response = await fetch(`${API_URL}/api/dashboard/stats`, { credentials: "include" });
   const data = await response.json();
   if (!response.ok) throw { message: data.message, status: response.status };
   return data;
 };
 
-
-export const getSalesHistory = async (token) => {
-  const response = await fetch(`${API_URL}/api/dashboard/sales-history`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getSalesHistory = async () => {
+  const response = await fetch(`${API_URL}/api/dashboard/sales-history`, { credentials: "include" });
   return await response.json();
 };
 
-export const deleteSale = async (token, id) => {
+export const deleteSale = async (id) => {
   const response = await fetch(`${API_URL}/api/dashboard/sale/${id}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
+    credentials: "include",
   });
   if (!response.ok) throw new Error("Error al eliminar venta");
 };
 
-export const getSalesByModel = async (token) => {
-  const response = await fetch(`${API_URL}/api/dashboard/sales-by-model`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getSalesByModel = async () => {
+  const response = await fetch(`${API_URL}/api/dashboard/sales-by-model`, { credentials: "include" });
   return await response.json();
 };
 
 // --- UNIDADES / MAQUINARIA ---
 
-export const getCustomerUnits = async (token, customerId) => {
-  const response = await fetch(`${API_URL}/api/customers/${customerId}/units`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getCustomerUnits = async (customerId) => {
+  const response = await fetch(`${API_URL}/api/customers/${customerId}/units`, { credentials: "include" });
   return await response.json();
 };
 
-export const createCustomerUnit = async (token, customerId, data) => {
+export const createCustomerUnit = async (customerId, data) => {
   const response = await fetch(`${API_URL}/api/customers/${customerId}/units`, {
     method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}` 
-    },
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Error guardando unidad");
   return await response.json();
 };
 
-export const updateCustomerUnit = async (token, customerId, unitId, data) => {
+export const updateCustomerUnit = async (customerId, unitId, data) => {
   const response = await fetch(`${API_URL}/api/customers/${customerId}/units/${unitId}`, {
     method: "PUT",
-    headers: { 
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}` 
-    },
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Error actualizando unidad");
   return await response.json();
 };
 
-export const deleteCustomerUnit = async (token, customerId, unitId) => {
+export const deleteCustomerUnit = async (customerId, unitId) => {
   const response = await fetch(`${API_URL}/api/customers/${customerId}/units/${unitId}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
+    credentials: "include",
   });
   if (!response.ok) throw new Error("Error eliminando unidad");
 };
+
+// --- UNIDADES / MAQUINARIA PARA POS ---
+export const getPosUnits = async (posId) => apiFetch(`/api/pos/${posId}/units`);
+export const createPosUnit = async (posId, data) => apiFetch(`/api/pos/${posId}/units`, { method: "POST", body: data });
+export const updatePosUnit = async (posId, unitId, data) => apiFetch(`/api/pos/${posId}/units/${unitId}`, { method: "PUT", body: data });
+export const deletePosUnit = async (posId, unitId) => apiFetch(`/api/pos/${posId}/units/${unitId}`, { method: "DELETE" });

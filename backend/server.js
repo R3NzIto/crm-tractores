@@ -16,6 +16,8 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const customerUnitsRoutes = require('./routes/customerUnitsRoutes');
 const modelsRoutes = require('./routes/modelsRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes'); // 👈 Tu nueva ruta de rendimientos
+const posRoutes = require('./routes/posRoutes');
+const posUnitsRoutes = require('./routes/posUnitsRoutes');
 
 const app = express();
 app.set('trust proxy', 1); 
@@ -77,6 +79,9 @@ app.get('/', (req, res) => {
     res.send('API CRM Tractores OK - Wolf Hard v2');
 });
 
+// Limitar toda la API antes de montar los routers
+app.use('/api', apiLimiter);
+
 // Autenticación
 app.use('/api/auth', authLimiter, authRoutes);
 
@@ -85,6 +90,8 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/customers/:customerId/units', customerUnitsRoutes); 
 app.use('/api/customers', customerAssignRoutes);
 app.use('/api/customers', customerNotesRoutes);
+app.use('/api/pos', posRoutes);
+app.use('/api/pos/:posId/units', posUnitsRoutes);
 
 // Módulos funcionales
 app.use('/api/agenda', agendaRoutes);
@@ -92,9 +99,6 @@ app.use('/api/users', userRoutes);
 app.use('/api/dashboard', dashboardRoutes); 
 app.use('/api/models', modelsRoutes);
 app.use('/api/analytics', analyticsRoutes); // 👈 Aquí se activa la magia de los gráficos
-
-// Middleware global para el resto de la API
-app.use('/api', apiLimiter);
 
 // --- 5. INICIAR SERVIDOR ---
 const PORT = process.env.PORT || 4000;

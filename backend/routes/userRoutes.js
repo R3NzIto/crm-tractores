@@ -4,7 +4,7 @@ const router = express.Router();
 const pool = require('../db');
 const { authMiddleware } = require('../middleware/authMiddleware');
 
-const canManageAll = (role) => ['admin', 'manager', 'jefe'].includes(role);
+const canManageAll = (role) => ['admin', 'manager'].includes(role);
 
 router.get('/', authMiddleware, async (req, res) => {
   if (!canManageAll(req.user.role)) {

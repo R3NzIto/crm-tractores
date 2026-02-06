@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // 👇 1. IMPORTAMOS LOS NUEVOS COMPONENTES
@@ -23,8 +24,8 @@ const Rendimientos = () => {
     let isMounted = true;
     const fetchData = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics?range=${range}`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        const response = await fetch(`${BASE_URL}/api/analytics?range=${range}`, {
+          credentials: 'include'
         });
         const result = await response.json();
         if (isMounted) {

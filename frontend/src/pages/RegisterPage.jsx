@@ -4,8 +4,9 @@ import { registerRequest } from "../api";
 import logoWolfHard from "../assets/logo-wolfhard.jpg";
 
 const ROLE_OPTIONS = [
-  { value: "jefe", label: "Jefe / Administrador" },
-  { value: "empleado", label: "Empleado" },
+  { value: "admin", label: "Administrador" },
+  { value: "manager", label: "Manager" },
+  { value: "employee", label: "Empleado" },
 ];
 
 function RegisterPage() {
@@ -32,7 +33,6 @@ function RegisterPage() {
         setError(data?.message || "No pudimos registrar la cuenta");
         return;
       }
-      localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       window.location.href = "/dashboard";
     } catch (err) {

@@ -95,8 +95,6 @@ a { text-decoration: none; color: inherit; }
   width: 100%;
 }
 
-.navbar-actions { display: flex; align-items: center; gap: 12px; }
-
 .page-title { margin: 0; font-size: 1.2rem; font-weight: 600; }
 .user-profile { display: flex; align-items: center; gap: 12px; }
 .user-name { font-weight: 500; font-size: 0.9rem; }
@@ -113,12 +111,13 @@ a { text-decoration: none; color: inherit; }
 
 .floating-sale-btn {
   display: inline-flex;
-  position: static;         /* se alinea junto al perfil en desktop */
-  margin-left: 12px;
+  position: fixed;
+  top: 16px;
+  right: 16px;
   z-index: 60;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-radius: 999px;
-  box-shadow: 0 10px 24px rgba(255,77,79,0.20);
+  box-shadow: 0 10px 24px rgba(255,77,79,0.25);
   background: linear-gradient(120deg, var(--primary), var(--accent));
   color: #fff;
   font-weight: 700;
@@ -127,17 +126,6 @@ a { text-decoration: none; color: inherit; }
   gap: 6px;
   min-width: 64px;
   font-size: 0.9rem;
-  height: 44px;
-  line-height: 1;
-}
-
-/* Versión escritorio: botón compacto */
-@media (min-width: 1025px) {
-  .floating-sale-btn {
-    padding: 10px 16px;
-    font-size: 0.95rem;
-    height: 46px;
-  }
 }
 
 /* --- UI COMPONENTS --- */
@@ -167,9 +155,6 @@ tr:hover { background-color: rgba(255,255,255,0.02); }
 .toolbar { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
 .tag { background: #333; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; display: inline-block; }
 .error { color: #f48b6a; margin-top: 6px; }
-.machine-search { display:flex; gap:6px; align-items:center; flex-direction: column; }
-.machine-search__input { width: 280px; border:1px solid #f0b43a; background: transparent; color: #fff; padding: 10px 12px; border-radius: var(--radius); height: 44px; box-sizing: border-box; }
-.machine-search__btn { white-space: nowrap; height: 40px; display:flex; align-items:center; justify-content:center; width: 120px; }
 
 /* Login Centrado */
 .auth-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%; padding: 20px; background-color: #0f0f0f; overflow-y: auto; }
@@ -181,11 +166,9 @@ tr:hover { background-color: rgba(255,255,255,0.02); }
   /* Botón flotante de Nueva Venta */
   .floating-sale-btn {
     display: inline-flex !important;
-    position: fixed;
     top: auto;
     right: 16px;
     bottom: 18px;
-    margin-left: 0;
   }
 
   /* Ocultamos el bloque de la derecha en navbar (usamos botón flotante) */
@@ -226,21 +209,6 @@ tr:hover { background-color: rgba(255,255,255,0.02); }
     box-shadow: none;
     padding: 20px 15px;
     margin-bottom: 10px;
-  }
-
-  /* Barra de búsqueda Maquinaria en móvil: botón dentro */
-  .machine-search { position: relative; width: 100%; gap:0; align-items: center; }
-  .machine-search__input {
-    width: 100%;
-    padding-right: 110px;
-    box-sizing: border-box;
-    height: 46px;
-  }
-  .machine-search__btn {
-    position: static;
-    width: 100%;
-    margin-top: 6px;
-    height: 44px;
   }
 
   .form-grid { grid-template-columns: 1fr; gap: 15px; }

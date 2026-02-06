@@ -11,7 +11,7 @@ const assignSchema = Joi.object({
   user_id: Joi.number().integer().required(),
 });
 
-const canManageAll = (role) => ['admin', 'manager', 'jefe'].includes(role);
+const canManageAll = (role) => ['admin', 'manager'].includes(role);
 
 const smtpConfig = {
   host: process.env.SMTP_HOST,

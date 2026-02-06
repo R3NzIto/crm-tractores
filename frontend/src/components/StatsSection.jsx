@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 
+const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
+
 const StatsSection = () => {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/dashboard/reports`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    fetch(`${BASE_URL}/api/dashboard/reports`, {
+      credentials: 'include'
     })
     .then(res => res.json())
     .then(data => setStats(data))

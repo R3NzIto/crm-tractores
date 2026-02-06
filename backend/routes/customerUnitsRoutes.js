@@ -2,6 +2,20 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const pool = require('../db');
 const { authMiddleware } = require('../middleware/authMiddleware');
+const Joi = require('joi');
+
+const unitSchema = Joi.object({
+  brand: Joi.string().max(80).required(),
+  model: Joi.string().max(120).required(),
+  year: Joi.number().integer().min(1900).max(9999).allow(null),
+  hp: Joi.number().integer().min(0).max(1000).allow(null),
+  status: Joi.string().valid('EN_USO', 'SOLD', 'RETIRED').default('EN_USO'),
+  interventions: Joi.string().allow('', null),
+  intervention_date: Joi.date().allow(null),
+  origin: Joi.string().max(30).default('TERCEROS'),
+  hours: Joi.number().integer().min(0).default(0),
+  comments: Joi.string().allow('', null)
+});
 
 // GET: Obtener unidades
 router.get('/', authMiddleware, async (req, res) => {
@@ -24,8 +38,10 @@ router.get('/', authMiddleware, async (req, res) => {
 // POST: Agregar unidad (VERSIÓN CORREGIDA)
 router.post('/', authMiddleware, async (req, res) => {
   const { customerId } = req.params;
-  // 👇 Usamos las variables nuevas
-  const { brand, model, year, hp, status, interventions, intervention_date, origin, hours, comments } = req.body;
+  const { error, value } = unitSchema.validate(req.body);
+  if (error) return res.status(400).json({ message: 'Datos inválidos: ' + error.details[0].message });
+
+  const { brand, model, year, hp, status, interventions, intervention_date, origin, hours, comments } = value;
 
   try {
     const result = await pool.query(
@@ -57,7 +73,10 @@ router.post('/', authMiddleware, async (req, res) => {
 // PUT: Editar unidad
 router.put('/:unitId', authMiddleware, async (req, res) => {
   const { unitId } = req.params;
-  const { brand, model, year, hp, status, interventions, intervention_date, origin, hours, comments } = req.body;
+  const { error, value } = unitSchema.validate(req.body);
+  if (error) return res.status(400).json({ message: 'Datos inválidos: ' + error.details[0].message });
+
+  const { brand, model, year, hp, status, interventions, intervention_date, origin, hours, comments } = value;
 
   try {
     const result = await pool.query(

@@ -8,8 +8,7 @@ const TopModelsChart = () => {
   const [data, setData] = useState([]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    getSalesByModel(token).then(setData).catch(console.error);
+    getSalesByModel().then(setData).catch(console.error);
   }, []);
 
   if (data.length === 0) {

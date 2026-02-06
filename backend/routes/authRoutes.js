@@ -33,9 +33,18 @@ const smtpTransport = nodemailer.createTransport({
   }
 });
 
-const mapRoleForToken = (dbRole) => (dbRole === 'admin' ? 'jefe' : 'empleado');
-const mapRoleForDb = (requestedRole) =>
-  requestedRole === 'jefe' || requestedRole === 'admin' ? 'admin' : 'employee';
+// Normalizamos roles al set canónico: admin | manager | employee
+const canonicalRole = (role) => {
+  if (!role) return 'employee';
+  const r = role.toLowerCase();
+  if (['admin', 'jefe'].includes(r)) return 'admin';          // compatibilidad con roles previos
+  if (['manager'].includes(r)) return 'manager';
+  if (['employee', 'empleado'].includes(r)) return 'employee';
+  return 'employee';
+};
+
+const mapRoleForToken = (dbRole) => canonicalRole(dbRole);
+const mapRoleForDb = (requestedRole) => canonicalRole(requestedRole);
 
 // --- ESQUEMAS DE VALIDACIÓN ---
 const loginSchema = Joi.object({
@@ -47,7 +56,9 @@ const registerSchema = Joi.object({
   name: Joi.string().min(2).max(100).required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(6).max(100).required(),
-  role: Joi.string().valid('jefe', 'empleado', 'admin', 'employee').default('empleado'),
+  role: Joi.string()
+    .valid('admin', 'manager', 'employee', 'jefe', 'empleado') // aceptamos alias viejos pero normalizamos
+    .default('employee'),
 });
 
 const forgotSchema = Joi.object({

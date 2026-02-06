@@ -2,23 +2,38 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authMiddleware } = require('../middleware/authMiddleware');
+const Joi = require('joi');
+
+// Helpers
+const isBoss = (role) => ['admin', 'manager'].includes(role);
+
+// Schemas
+const saleSchema = Joi.object({
+  customer_id: Joi.number().integer().required(),
+  sold_unit_id: Joi.number().integer().allow(null),
+  amount: Joi.number().positive().precision(2).required(),
+  currency: Joi.string().valid('USD', 'ARS').default('USD'),
+  notes: Joi.string().max(500).allow('', null),
+  model: Joi.string().max(120).allow('', null),
+  hp: Joi.number().integer().min(0).max(1000).allow(null)
+});
 
 // 1. RENDIMIENTO DIARIO
 router.get('/daily-performance', authMiddleware, async (req, res) => {
   try {
-    const isBoss = ['admin', 'manager', 'jefe'].includes(req.user.role);
+    const boss = isBoss(req.user.role);
     const params = [];
     
     let query = `
       SELECT 
-        to_char(created_at, 'YYYY-MM-DD') as day,
+        (created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')::date as day,
         action_type, 
         COUNT(*) as count
       FROM customer_notes
-      WHERE created_at >= date_trunc('month', CURRENT_DATE)
+      WHERE (created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')::date >= date_trunc('month', CURRENT_DATE)::date
     `;
 
-    if (!isBoss) {
+    if (!boss) {
       query += ` AND user_id = $1`;
       params.push(req.user.id);
     }
@@ -36,7 +51,7 @@ router.get('/daily-performance', authMiddleware, async (req, res) => {
 // 2. ACTIVIDAD RECIENTE
 router.get('/activity', authMiddleware, async (req, res) => {
   try {
-    const isBoss = ['admin', 'manager', 'jefe'].includes(req.user.role);
+    const boss = isBoss(req.user.role);
     
     let query = `
       SELECT n.id, n.texto, n.created_at, n.latitude, n.longitude, n.customer_id, n.action_type,
@@ -49,7 +64,7 @@ router.get('/activity', authMiddleware, async (req, res) => {
     `;
 
     const params = [];
-    if (!isBoss) {
+    if (!boss) {
       query += ` AND n.user_id = $1`;
       params.push(req.user.id);
     }
@@ -65,9 +80,10 @@ router.get('/activity', authMiddleware, async (req, res) => {
 });
 
 // 3. REPORTES
-router.get('/reports', authMiddleware, async (req, res) => {
+// Alias: el frontend llama /stats, mantenemos /reports por compatibilidad
+const buildReports = async (req, res) => {
     try {
-      const isBoss = ['admin', 'manager', 'jefe'].includes(req.user.role);
+      const boss = isBoss(req.user.role);
       const params = [];
       
       let query = `
@@ -82,7 +98,7 @@ router.get('/reports', authMiddleware, async (req, res) => {
         FROM customer_notes
       `;
 
-      if (!isBoss) {
+      if (!boss) {
         query += ` WHERE user_id = $1`;
         params.push(req.user.id);
       }
@@ -93,19 +109,40 @@ router.get('/reports', authMiddleware, async (req, res) => {
       console.error('Error reports:', err);
       res.status(500).json({ message: 'Error calculando reportes' });
     }
-});
+};
+
+router.get('/reports', authMiddleware, buildReports);
+router.get('/stats', authMiddleware, buildReports);
 
 // 4. REGISTRAR VENTA
 router.post('/sale', authMiddleware, async (req, res) => {
-    const { customer_id, sold_unit_id, amount, currency, notes, model, hp } = req.body;
-    
+    const { error, value } = saleSchema.validate(req.body);
+    if (error) return res.status(400).json({ message: 'Datos inválidos: ' + error.details[0].message });
+
+    const { customer_id, sold_unit_id, amount, currency, notes, model, hp } = value;
+
+    const client = await pool.connect();
     try {
+        await client.query('BEGIN');
+
+        // Si no es admin/manager, validar que el cliente le pertenece (creado o asignado)
+        if (!isBoss(req.user.role)) {
+            const ownership = await client.query(
+              `SELECT 1 FROM customers WHERE id = $1 AND (created_by = $2 OR assigned_to = $2)`,
+              [customer_id, req.user.id]
+            );
+            if (ownership.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return res.status(403).json({ message: 'No puedes registrar ventas para este cliente' });
+            }
+        }
+
         const insertSale = `
             INSERT INTO sales_records (user_id, customer_id, sold_unit_id, amount, currency, notes, model, hp)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *
+            RETURNING id
         `;
-        await pool.query(insertSale, [
+        const saleRes = await client.query(insertSale, [
             req.user.id, 
             customer_id, 
             sold_unit_id || null, 
@@ -116,28 +153,43 @@ router.post('/sale', authMiddleware, async (req, res) => {
             hp || null
         ]);
 
-        const noteText = `Venta: $${amount} ${currency}. ${model ? `Modelo: ${model}` : ''} ${notes}`;
+        const noteText = `Venta: $${amount} ${currency}. ${model ? `Modelo: ${model}` : ''} ${notes || ''}`.trim();
         const insertNote = `
             INSERT INTO customer_notes (user_id, customer_id, texto, action_type, created_at)
-            VALUES ($1, $2, $3, 'SALE', NOW())
+            VALUES ($1, $2, $3, 'SALE', NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires')
+            RETURNING id
         `;
-        await pool.query(insertNote, [req.user.id, customer_id, noteText]);
+        const noteRes = await client.query(insertNote, [req.user.id, customer_id, noteText]);
 
-        if (sold_unit_id) {
-            await pool.query('UPDATE sold_units SET status = $1 WHERE id = $2', ['SOLD', sold_unit_id]);
+        // Guardar referencia de la nota en la venta (si la columna existe)
+        try {
+          await client.query(
+            'UPDATE sales_records SET note_id = $1 WHERE id = $2',
+            [noteRes.rows[0].id, saleRes.rows[0].id]
+          );
+        } catch (_) {
+          // si note_id no existe aún, ignoramos
         }
 
+        if (sold_unit_id) {
+            await client.query('UPDATE sold_units SET status = $1 WHERE id = $2', ['SOLD', sold_unit_id]);
+        }
+
+        await client.query('COMMIT');
         res.json({ message: 'Venta registrada con éxito' });
     } catch (err) {
+        await client.query('ROLLBACK');
         console.error('Error en /sale:', err);
         res.status(500).json({ message: 'Error al registrar venta' });
+    } finally {
+        client.release();
     }
 });
 
 // 5. OBTENER HISTORIAL DE VENTAS
 router.get('/sales-history', authMiddleware, async (req, res) => {
   try {
-    const isBoss = ['admin', 'manager', 'jefe'].includes(req.user.role);
+    const isBoss = ['admin', 'manager'].includes(req.user.role);
     let query = `
       SELECT s.id, s.amount, s.currency, s.sale_date, s.model, s.hp, s.notes,
              c.name as customer_name,
@@ -172,11 +224,11 @@ router.delete('/sale/:id', authMiddleware, async (req, res) => {
     await client.query('BEGIN');
 
     // 1. Obtener datos de la venta ANTES de borrarla
-    const isBoss = ['admin', 'manager', 'jefe'].includes(req.user.role);
+    const boss = isBoss(req.user.role);
     let checkQuery = 'SELECT * FROM sales_records WHERE id = $1';
     let checkParams = [id];
 
-    if (!isBoss) {
+    if (!boss) {
         checkQuery += ' AND user_id = $2';
         checkParams.push(req.user.id);
     }
@@ -193,36 +245,27 @@ router.delete('/sale/:id', authMiddleware, async (req, res) => {
     // 2. Borrar la Venta Financiera
     await client.query('DELETE FROM sales_records WHERE id = $1', [id]);
 
-    // 3. Borrar la Nota Automática del Dashboard
-    // TRUCO: Convertimos el monto a entero para evitar problemas con ".00"
-    const amountInt = parseInt(saleToDelete.amount); 
-    
-    // INTENTO 1: Buscar por monto exacto (texto)
-    let deleteNoteResult = await client.query(`
-        DELETE FROM customer_notes
-        WHERE id = (
-            SELECT id FROM customer_notes
-            WHERE customer_id = $1
-            AND action_type = 'SALE'
-            AND texto LIKE $2 
-            ORDER BY created_at DESC
-            LIMIT 1
-        )
-    `, [saleToDelete.customer_id, `%${amountInt}%`]);
+    // 3. Borrar la Nota asociada con referencia directa si existe note_id; fallback por última venta
+    const deleteByRef = async () => {
+      if (saleToDelete.note_id) {
+        const resDel = await client.query('DELETE FROM customer_notes WHERE id = $1', [saleToDelete.note_id]);
+        return resDel.rowCount;
+      }
+      return 0;
+    };
 
-    // INTENTO 2 (FAIL-SAFE): Si no borró nada (porque el texto era diferente), 
-    // borramos la ÚLTIMA venta de ese cliente sin mirar el texto.
-    if (deleteNoteResult.rowCount === 0) {
-        await client.query(`
-            DELETE FROM customer_notes
-            WHERE id = (
-                SELECT id FROM customer_notes
-                WHERE customer_id = $1
-                AND action_type = 'SALE'
-                ORDER BY created_at DESC
-                LIMIT 1
-            )
-        `, [saleToDelete.customer_id]);
+    let deleted = await deleteByRef();
+    if (deleted === 0) {
+      await client.query(`
+          DELETE FROM customer_notes
+          WHERE id = (
+              SELECT id FROM customer_notes
+              WHERE customer_id = $1
+              AND action_type = 'SALE'
+              ORDER BY created_at DESC
+              LIMIT 1
+          )
+      `, [saleToDelete.customer_id]);
     }
 
     await client.query('COMMIT');
