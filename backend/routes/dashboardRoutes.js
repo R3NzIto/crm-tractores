@@ -30,7 +30,7 @@ router.get('/daily-performance', authMiddleware, async (req, res) => {
         action_type, 
         COUNT(*) as count
       FROM customer_notes
-      WHERE (created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')::date >= date_trunc('month', CURRENT_DATE)::date
+      WHERE created_at >= NOW() - INTERVAL '30 days'
     `;
 
     if (!boss) {
