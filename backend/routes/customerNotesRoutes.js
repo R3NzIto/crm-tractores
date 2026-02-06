@@ -69,7 +69,7 @@ router.post('/:customerId/notes', authMiddleware, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO customer_notes (customer_id, user_id, texto, fecha_visita, proximos_pasos, latitude, longitude, action_type, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
        RETURNING *`,
       [
         customerId,

@@ -156,7 +156,7 @@ router.post('/sale', authMiddleware, async (req, res) => {
         const noteText = `Venta: $${amount} ${currency}. ${model ? `Modelo: ${model}` : ''} ${notes || ''}`.trim();
         const insertNote = `
             INSERT INTO customer_notes (user_id, customer_id, texto, action_type, created_at)
-            VALUES ($1, $2, $3, 'SALE', NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires')
+            VALUES ($1, $2, $3, 'SALE', NOW())
             RETURNING id
         `;
         const noteRes = await client.query(insertNote, [req.user.id, customer_id, noteText]);
