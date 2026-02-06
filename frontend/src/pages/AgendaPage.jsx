@@ -139,7 +139,7 @@ function AgendaPage() {
 
   const formatStatus = (status) => STATUS_META[status]?.label || status;
 
-  const formatDate = (dateString) =>
+  const formatDate = (dateString) => {
     if (!dateString) return "Sin fecha";
     const d = new Date(dateString);
     if (Number.isNaN(d.getTime())) return "Sin fecha";
@@ -151,6 +151,7 @@ function AgendaPage() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
 
   return (
     <div className="page agenda-page">
