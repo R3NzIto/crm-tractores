@@ -4,13 +4,11 @@ import {
   getPos, createPos, updatePos, deletePos,
   getUsers,
   getPosUnits, createPosUnit, updatePosUnit, deletePosUnit,
-  logoutAndRedirect
 } from "../api";
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/$/, '');
 const HP_OPTIONS = Array.from({length: (400-50)/5 +1}, (_,i)=>50+i*5);
 
-const MANAGER_ROLES = ["admin", "manager"];
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-");
 
 function PointsOfSalePage() {
@@ -37,7 +35,7 @@ function PointsOfSalePage() {
 
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
-  const isManager = MANAGER_ROLES.includes(user?.role);
+  const canAssignUsers = user?.role === "admin";
 
   // CARGAR SOLO PUNTOS DE VENTA (nueva tabla POS)
   const loadPOS = useCallback(async () => {
@@ -55,9 +53,9 @@ function PointsOfSalePage() {
   }, []);
 
   const loadUsers = useCallback(async () => {
-    if (!isManager) return;
+    if (!canAssignUsers) return;
     try { const data = await getUsers(null); setUsers(Array.isArray(data) ? data : []); } catch (e) { console.error(e); }
-  }, [isManager]);
+  }, [canAssignUsers]);
 
   useEffect(() => { 
     loadPOS(); loadUsers(); 
@@ -75,7 +73,7 @@ function PointsOfSalePage() {
         assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
       };
       if (Number.isNaN(payload.assigned_to)) payload.assigned_to = null;
-      if (!isManager) delete payload.assigned_to; 
+      if (!canAssignUsers) delete payload.assigned_to; 
       if (editingId) await updatePos(editingId, payload);
       else await createPos(payload);
       
@@ -172,7 +170,7 @@ function PointsOfSalePage() {
            <input type="text" placeholder="Contacto / Encargado" value={form.company} onChange={e=>setForm({...form, company:e.target.value})} />
            <input type="text" placeholder="Teléfono" value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} />
            <input type="text" placeholder="Localidad" value={form.localidad} onChange={e=>setForm({...form, localidad:e.target.value})} />
-           {isManager && <select value={form.assigned_to||""} onChange={e=>setForm({...form, assigned_to:e.target.value})}><option value="">Asignar Ejecutivo...</option>{users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select>}
+           {canAssignUsers && <select value={form.assigned_to||""} onChange={e=>setForm({...form, assigned_to:e.target.value})}><option value="">Asignar Ejecutivo...</option>{users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select>}
            
            <div className="toolbar">
              {/* AQUI USAMOS "loading" PARA DESHABILITAR EL BOTON */}

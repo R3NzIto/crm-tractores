@@ -2,6 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getDailyPerformance } from '../api';
 
+const toChartData = (raw) => {
+  const processed = {};
+  raw.forEach((item) => {
+    if (!item.day) return;
+    // item.day viene como "YYYY-MM-DDTHH:mm:ssZ". Para evitar corrimientos de huso,
+    // tomamos solo la parte de fecha y armamos DD/MM sin crear un Date().
+    const [_year, month, day] = item.day.substring(0, 10).split('-');
+    const dateKey = `${day}/${month}`;
+    if (!processed[dateKey]) processed[dateKey] = { name: dateKey, CALL: 0, VISIT: 0, SALE: 0 };
+    processed[dateKey][item.action_type] = parseInt(item.count, 10);
+  });
+  return Object.values(processed);
+};
+
 const DashboardChart = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -9,25 +23,28 @@ const DashboardChart = () => {
   const loadData = () => {
     setLoading(true);
     getDailyPerformance()
-      .then((raw) => {
-        const processed = {};
-        raw.forEach(item => {
-            if (!item.day) return;
-            // item.day viene como "YYYY-MM-DDTHH:mm:ssZ". Para evitar corrimientos de huso,
-            // tomamos solo la parte de fecha y armamos DD/MM sin crear un Date().
-            const [year, month, day] = item.day.substring(0, 10).split('-');
-            const dateKey = `${day}/${month}`;
-            if (!processed[dateKey]) processed[dateKey] = { name: dateKey, CALL: 0, VISIT: 0, SALE: 0 };
-            processed[dateKey][item.action_type] = parseInt(item.count, 10);
-        });
-        const chartData = Object.values(processed);
-        setData(chartData);
-      })
+      .then((raw) => setData(toChartData(raw)))
       .catch(console.error)
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    let mounted = true;
+    const bootstrap = async () => {
+      try {
+        const raw = await getDailyPerformance();
+        if (mounted) setData(toChartData(raw));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    bootstrap();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   if (loading) return <div style={{height: '300px', display:'flex', alignItems:'center', justifyContent:'center', color:'#666'}}>Cargando gráfico...</div>;
   if (data.length === 0) return <div style={{height: '300px', display:'flex', alignItems:'center', justifyContent:'center', color:'#666', fontStyle:'italic'}}>Sin actividad este mes.</div>;

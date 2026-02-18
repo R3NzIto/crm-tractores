@@ -101,7 +101,7 @@ export function logoutAndRedirect(path = "/") {
 // --- CLIENTES ---
 
 export const getCustomers = async (params = {}) => {
-  const { machine = "", type = "" } = params || {};
+  const { machine = "" } = params || {};
   let url = `${API_URL}/api/customers?`;
   if (machine) url += `&machine=${encodeURIComponent(machine)}`;
   
@@ -148,6 +148,8 @@ export async function assignCustomer(id, userId) {
 // --- USUARIOS ---
 
 export const getUsers = async () => apiFetch("/api/users");
+export const createUserByAdmin = async (payload) => apiFetch("/api/users", { method: "POST", body: payload });
+export const deleteUserByAdmin = async (id) => apiFetch(`/api/users/${id}`, { method: "DELETE" });
 
 // --- NOTAS Y AGENDA ---
 

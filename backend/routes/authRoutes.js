@@ -155,8 +155,9 @@ router.post('/register', async (req, res) => {
   const { error, value } = registerSchema.validate(req.body);
   if (error) return res.status(400).json({ message: 'Datos invalidos' });
 
-  const { name, email, password, role } = value;
-  const dbRole = mapRoleForDb(role);
+  const { name, email, password } = value;
+  // Registro publico: siempre crea empleado, ignorando cualquier rol enviado
+  const dbRole = 'employee';
   const normalizedEmail = email.trim().toLowerCase();
 
   try {

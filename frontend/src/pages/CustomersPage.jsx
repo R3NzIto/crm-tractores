@@ -111,6 +111,7 @@ function CustomersPage() {
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
   const isManager = MANAGER_ROLES.includes(user?.role);
+  const canAssignUsers = user?.role === "admin";
   const canCreate = true;
   const canEditExisting = true;
   const canImport = true;
@@ -223,12 +224,12 @@ function CustomersPage() {
   };
 
   const loadUsers = useCallback(async () => {
-    if (!isManager) return;
+    if (!canAssignUsers) return;
     try {
       const data = await getUsers(null);
       setUsers(Array.isArray(data) ? data : []);
     } catch (error) { console.error("Error users", error); }
-  }, [isManager]);
+  }, [canAssignUsers]);
 
   const loadNotes = async (customer) => {
     if (!customer || customer.id === undefined || customer.id === null) return;
@@ -431,7 +432,7 @@ function CustomersPage() {
     if (!form.name.trim()) { setError("Nombre obligatorio"); return; }
     try {
       const payload = { ...form };
-      if (!isManager) delete payload.assigned_to;
+      if (!canAssignUsers) delete payload.assigned_to;
       else if (!payload.assigned_to) payload.assigned_to = user?.id;
       
       if (editingId) await updateCustomer(editingId, payload); 
@@ -531,7 +532,7 @@ function CustomersPage() {
           <input type="text" placeholder="Empresa" value={form.company} onChange={(e) => setForm({...form, company:e.target.value})} />
           <input type="text" placeholder="Localidad" value={form.localidad} onChange={(e) => setForm({...form, localidad:e.target.value})} />
           <input type="text" placeholder="Sector" value={form.sector} onChange={(e) => setForm({...form, sector:e.target.value})} />
-          {isManager && <select value={form.assigned_to || ""} onChange={(e) => setForm({...form, assigned_to:e.target.value})}><option value="">Asignar a...</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}
+          {canAssignUsers && <select value={form.assigned_to || ""} onChange={(e) => setForm({...form, assigned_to:e.target.value})}><option value="">Asignar a...</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}
           <div className="toolbar">
             <button className="btn" type="submit" disabled={loading || !canSubmit}>{editingId ? "Guardar Cambios" : "Agregar"}</button>
             {editingId && <button className="btn secondary" type="button" onClick={cancelEdit}>Cancelar</button>}
@@ -614,7 +615,7 @@ function CustomersPage() {
                           <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => startEdit(c)}>✏️ Editar Datos</button>
                           <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => loadUnits(c)}>🚜 Ver Unidades</button>
                           <button className="btn ghost" style={{textAlign:'left', borderRadius:0, padding:'10px'}} onClick={() => loadNotes(c)}>📝 Notas/Visitas</button>
-                          {isManager && (
+                          {canAssignUsers && (
                             <div style={{padding: '5px 10px', borderTop: '1px solid #333'}}>
                                 <label style={{fontSize: '0.7rem', color:'#888'}}>Asignar a:</label>
                                 <select value={c.assigned_to || ""} onChange={(e) => handleAssign(c.id, e.target.value)} style={{width: '100%', marginTop:2, fontSize:'0.8rem', padding:'2px'}} onClick={(e) => e.stopPropagation()}>

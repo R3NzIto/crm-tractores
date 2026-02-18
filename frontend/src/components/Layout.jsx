@@ -12,6 +12,7 @@ const Layout = () => {
   
   // Roles con privilegios elevados
   const isJefe = user?.role === 'admin' || user?.role === 'manager'; 
+  const isAdmin = user?.role === 'admin';
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
@@ -52,6 +53,14 @@ const Layout = () => {
               <li>
                 <Link to="/analytics" className={`nav-link ${isActive("/analytics")}`} onClick={closeSidebar}>
                   <span className="icon">📈</span> Rendimientos
+                </Link>
+              </li>
+            )}
+
+            {isAdmin && (
+              <li>
+                <Link to="/admin/users" className={`nav-link ${isActive("/admin/users")}`} onClick={closeSidebar}>
+                  <span className="icon">ADM</span> Panel Admin
                 </Link>
               </li>
             )}

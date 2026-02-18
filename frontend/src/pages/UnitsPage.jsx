@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getAllUnits, logoutAndRedirect } from "../api";
+import { getAllUnits } from "../api";
 
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-");
 

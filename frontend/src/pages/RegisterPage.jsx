@@ -3,18 +3,11 @@ import { Link } from "react-router-dom";
 import { registerRequest } from "../api";
 import logoWolfHard from "../assets/logo-wolfhard.jpg";
 
-const ROLE_OPTIONS = [
-  { value: "admin", label: "Administrador" },
-  { value: "manager", label: "Manager" },
-  { value: "employee", label: "Empleado" },
-];
-
 function RegisterPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
-    role: "empleado",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -76,17 +69,6 @@ function RegisterPage() {
             onChange={(e) => handleChange("password", e.target.value)}
             required
           />
-          <select
-            value={form.role}
-            onChange={(e) => handleChange("role", e.target.value)}
-          >
-            {ROLE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          
           <button className="btn" type="submit" disabled={loading} style={{ marginTop: '10px' }}>
             {loading ? "Creando..." : "Registrarse"}
           </button>

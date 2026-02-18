@@ -10,12 +10,25 @@ import Layout from "./components/Layout";
 import "./App.css";
 import PointsOfSalePage from "./pages/PointsOfSalePage";
 import Rendimientos from "./pages/Rendimientos";
+import AdminUsersPage from "./pages/AdminUsersPage";
 
 
 function ProtectedRoute({ children }) {
   const user = localStorage.getItem("user");
   if (!user) return <Navigate to="/" replace />;
   return children;
+}
+
+function AdminRoute({ children }) {
+  const raw = localStorage.getItem("user");
+  if (!raw) return <Navigate to="/" replace />;
+  try {
+    const user = JSON.parse(raw);
+    if (user?.role !== "admin") return <Navigate to="/dashboard" replace />;
+    return children;
+  } catch {
+    return <Navigate to="/" replace />;
+  }
 }
 
 function App() {
@@ -34,6 +47,7 @@ function App() {
            <Route path="/agenda" element={<AgendaPage />} />
            <Route path="/pos" element={<PointsOfSalePage />} />
            <Route path="analytics" element={<Rendimientos />} />
+           <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>
